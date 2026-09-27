@@ -1,0 +1,1588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ignion FP&A</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+<div id="ig-root">
+<style>
+#ig-root{--red:#C72030;--dark:#660708;--ink:#282828;--bg:#F1ECE8;--panel:#FFFFFF;--line:#E2D9D3;--mut:#8A8078;
+ --act:#FCDEE1;--fct:#FFF;font-family:Arial,Helvetica,sans-serif;color:var(--ink);background:var(--bg);min-height:100vh}
+#ig-root *{box-sizing:border-box}
+#ig-root .top{display:flex;align-items:center;gap:14px;padding:12px 22px;background:#fff;border-bottom:3px solid var(--red);position:sticky;top:0;z-index:20}
+#ig-root .top img{height:52px}
+#ig-root .top h1{font-size:17px;margin:0;color:var(--dark);letter-spacing:.02em}
+#ig-root .top .sp{flex:1}
+#ig-root .btn{font:inherit;font-size:12.5px;font-weight:bold;color:#fff;background:var(--red);border:none;border-radius:6px;padding:8px 14px;cursor:pointer}
+#ig-root .btn.sec{background:#fff;color:var(--red);border:1.5px solid var(--red)}
+#ig-root .btn:disabled{opacity:.45;cursor:default}
+#ig-root .chip{font-size:11.5px;background:var(--bg);border:1px solid var(--line);border-radius:20px;padding:5px 11px;color:var(--ink)}
+#ig-root .chip.ro{background:var(--act)}
+#ig-root nav{display:flex;gap:2px;flex-wrap:wrap;padding:8px 22px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:59px;z-index:19}
+#ig-root nav button{font:inherit;font-size:12.5px;border:none;background:none;padding:8px 12px;cursor:pointer;color:var(--ink);border-radius:6px 6px 0 0;border-bottom:2.5px solid transparent}
+#ig-root nav button.on{color:var(--red);border-bottom-color:var(--red);font-weight:bold}
+#ig-root main{padding:18px 22px;max-width:1500px;margin:0 auto}
+#ig-root h2{font-size:15px;color:var(--dark);margin:6px 0 10px}
+#ig-root .note{font-size:12px;color:var(--mut);margin:4px 0 12px}
+#ig-root .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:16px;overflow:auto}
+#ig-root table{border-collapse:collapse;font-size:11.5px;white-space:nowrap}
+#ig-root table.pgrid{table-layout:fixed}
+#ig-root table.ytab{table-layout:fixed;width:100%}
+#ig-root table.kpitab{table-layout:fixed;width:100%;border-collapse:collapse}
+#ig-root table.kpitab th{background:var(--dark);color:#fff;font-size:12px;padding:7px 8px;text-align:center}
+#ig-root table.kpitab th:first-child{text-align:left;position:static}
+#ig-root table.kpitab td{border-bottom:1px solid var(--line);text-align:center;padding:8px 8px;font-size:15px;font-weight:bold;color:var(--dark);position:static;background:none}
+#ig-root table.kpitab td.klab{background:var(--dark);color:#fff;font-size:12px;text-align:left;padding:8px 12px}
+#ig-root table.kpitab td.act{background:var(--act)}
+#ig-root table.kpitab td.neg{color:var(--red)}
+#ig-root table.ytab td,#ig-root table.ytab th{font-size:14px;padding:5px 8px}
+#ig-root th{background:var(--dark);color:#fff;padding:5px 8px;text-align:right;font-weight:bold;position:sticky;top:0}
+#ig-root th:first-child{text-align:left;position:sticky;left:0;z-index:3}
+#ig-root td{border-bottom:1px solid var(--line);padding:3px 8px;text-align:right}
+#ig-root td:first-child{text-align:left;background:#fff;position:sticky;left:0;font-weight:bold;color:var(--dark);z-index:2}
+#ig-root tr.tot td{border-top:2px solid var(--dark);font-weight:bold}
+#ig-root tr.hdr td{border-top:2px solid var(--dark);font-weight:bold;background:#FAF5F1}
+#ig-root tr.mid td{border-top:1.5px solid #C9BEB6;font-weight:bold}
+#ig-root tr.det td{color:#6E655E;border-bottom:1px dotted #E7DFD9}
+#ig-root tr.det td:first-child{padding-left:24px;font-weight:normal;color:#6E655E;font-style:italic}
+#ig-root tr.sub td{font-weight:bold;background:#FAF5F1}
+#ig-root td.act{background:var(--act)}
+#ig-root td.neg{color:var(--red)}
+#ig-root input.cell{width:84px;font:inherit;font-size:11.5px;text-align:right;border:1px solid transparent;border-radius:4px;background:#FDF6E8;padding:2px 4px}
+#ig-root input.cell:focus{outline:none;border-color:var(--red);background:#fff}
+#ig-root input.wide{width:150px;text-align:left}
+#ig-root select.cell{font:inherit;font-size:11.5px;border:1px solid var(--line);border-radius:4px;background:#FDF6E8;padding:2px}
+#ig-root .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
+#ig-root .strip{background:#fff;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;display:grid;grid-template-columns:190px repeat(6,1fr);align-items:stretch;overflow:hidden}
+#ig-root .strip .lab{background:var(--dark);color:#fff;font-weight:bold;font-size:14px;padding:12px 14px;display:flex;align-items:center}
+#ig-root .strip .yc{padding:8px 10px;border-left:1px solid var(--line);text-align:center}
+#ig-root .strip .yc .yl{font-size:12px;color:var(--mut);letter-spacing:.05em}
+#ig-root .strip .yc .yv{font-size:21px;font-weight:bold;color:var(--dark);margin-top:2px}
+#ig-root .strip .yc.act{background:var(--act)}
+#ig-root .strip .yc .yv.neg{color:var(--red)}
+#ig-root .kpi{background:#fff;border:1px solid var(--line);border-left:4px solid var(--red);border-radius:8px;padding:10px 14px}
+#ig-root .kpi .l{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em}
+#ig-root .kpi .v{font-size:19px;font-weight:bold;color:var(--dark);margin-top:2px}
+#ig-root .ov{position:fixed;inset:0;background:rgba(40,40,40,.55);display:none;align-items:center;justify-content:center;z-index:50}
+#ig-root .ov.on{display:flex}
+#ig-root .login{background:#fff;border-radius:12px;padding:28px;width:340px;border-top:5px solid var(--red)}
+#ig-root .login h3{margin:0 0 6px;color:var(--dark)}
+#ig-root .fld{margin:10px 0}
+#ig-root .fld label{display:block;font-size:11.5px;color:var(--mut);margin-bottom:3px}
+#ig-root .fld input{width:100%;font:inherit;padding:8px;border:1px solid var(--line);border-radius:6px}
+#ig-root .err{color:var(--red);font-size:12px;min-height:16px;margin-top:6px}
+#ig-root .toast{position:fixed;bottom:20px;right:20px;background:var(--dark);color:#fff;padding:10px 16px;border-radius:8px;font-size:12.5px;display:none;z-index:60}
+#ig-root .toast.on{display:block}
+#ig-root .banner{background:#FDF0D5;border:1px solid #E0C98F;border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:14px}
+#ig-root tr.hlwc td{background:#EFE237} /* Pantone 12-0650 TCX Summer Sun */
+#ig-root .restrnote{font-size:10px;color:#8A5A00;background:#FFF3D6;border-radius:4px;padding:2px 6px}
+#ig-root sup.restrmark{color:#8A5A00;font-size:9px;margin-left:2px}
+#ig-root svg text{font-family:Arial}
+#ig-root .ovgrid{column-count:2;column-gap:16px}
+#ig-root .ovgrid .card,#ig-root .ovgrid .strip,#ig-root .ovgrid .note{break-inside:avoid}
+@media (max-width:1100px){#ig-root .ovgrid{column-count:1}}
+#ig-root .chead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+#ig-root .chead h2{margin:0}
+#ig-root .cbtn{font:inherit;font-size:10.5px;color:var(--red);background:#fff;border:1px solid var(--red);border-radius:5px;padding:3px 8px;cursor:pointer}
+#ig-root .dbtn{background:none;border:none;cursor:pointer;color:#8A8078;padding:2px}
+#ig-root .dbtn:hover{color:var(--red)}
+#ig-root .dbtn svg{width:13px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round}
+
+#ig-root .btn.cheat{background:var(--dark)}
+#ig-root .csov{position:fixed;inset:0;background:rgba(40,40,40,.45);z-index:60;display:none}
+#ig-root .csov.on{display:block}
+#ig-root .csp{position:absolute;top:4vh;left:50%;transform:translateX(-50%);width:min(960px,94vw);max-height:92vh;overflow:auto;background:#fff;border-radius:10px;border-top:5px solid var(--dark);box-shadow:0 18px 50px rgba(0,0,0,.35);padding:26px 34px 34px}
+#ig-root .csp h2{color:var(--dark);font-size:16px;margin:22px 0 8px;border-bottom:1px solid var(--line);padding-bottom:4px}
+#ig-root .csp h3{color:var(--red);font-size:13px;margin:14px 0 4px}
+#ig-root .csp p,#ig-root .csp li{font-size:12.5px;line-height:1.55}
+#ig-root .csp ul{margin:4px 0 10px 18px;padding:0}
+#ig-root .cs-f{font-family:Consolas,Menlo,monospace;font-size:12px;background:#F7F3F0;border:1px solid var(--line);border-radius:4px;padding:1px 6px;white-space:nowrap}
+#ig-root .cshead{display:flex;align-items:center;gap:10px}
+#ig-root .cshead h1{font-size:19px;color:var(--dark);margin:0}
+#ig-root .csx{margin-left:auto;display:flex;gap:8px}
+#ig-root .icobtn{background:#fff;border:1.5px solid var(--dark);color:var(--dark);border-radius:6px;width:34px;height:34px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+#ig-root .icobtn svg{width:17px;height:17px;stroke:var(--dark);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+</style>
+
+<div class="top">
+  <img id="logo" alt="Ignion">
+  <h1>FP&amp;A portal</h1>
+  <span class="chip" id="modeChip"></span>
+  <span class="sp"></span>
+  <span class="chip" id="userChip" style="display:none"><span id="userName"></span> &middot; <span id="userRole"></span></span>
+  <select class="cell" id="scnSel" title="Active scenario" style="min-width:130px;font-weight:bold"></select>
+  <button class="btn sec" id="scnNew">New scenario</button>
+  <button class="btn sec" id="scnDel" style="display:none">Delete scenario</button>
+  <button class="btn sec" id="xlTpl">Download budget template</button>
+  <button class="btn sec" id="xlOut">Export this budget</button>
+  <button class="btn sec" id="xlIn">Import budget template</button>
+  <input type="file" id="xlFile" accept=".xlsx" style="display:none">
+  <button class="btn cheat" id="csBtn">Cheatsheet</button>
+  <button class="btn" id="saveBtn">Save</button>
+  <button class="btn sec" id="outBtn" style="display:none">Sign out</button>
+</div>
+<nav id="nav"></nav>
+<main id="main"></main>
+
+<div class="ov" id="login"><div class="login">
+  <h3>Ignion FP&amp;A</h3>
+  <div class="note" id="liNote">Sign in with your Ignion account.</div>
+  <div class="fld"><label>Email</label><input id="liUser" type="email"></div>
+  <div class="fld"><label>Password</label><input id="liPass" type="password"></div>
+  <button class="btn" id="liBtn" style="width:100%">Sign in</button>
+  <div class="err" id="liErr"></div>
+</div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const LOGO="data:image/png;base64,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"; $('logo').src=LOGO;
+/* ---------- Supabase config: set after provisioning the Ignion project ---------- */
+const SB_URL='https://eunfyaoxmniihklgggwh.supabase.co';
+const SB_KEY='sb_publishable_EIJAz5-A0d3jvu74C9qV0Q_3LEDqYSl';
+const CONFIGURED = SB_URL.indexOf('supabase.co')>0;
+const sb = (CONFIGURED && window.supabase) ? window.supabase.createClient(SB_URL,SB_KEY) : null;
+
+let MODEL={"params": {"fx": 1.15, "dso": 45, "taxRate": 0.2, "closedThrough": "2026-05", "openingCash": 1493458.3, "ssRates": {"Spain": 0.3, "China": 0.16, "United States": 0.0765, "Ireland": 0.1105, "Hungary": 0.13}, "depts": ["Product sales", "Marketing", "Oxion", "EDL", "Technology", "Operations", "Customer support"], "fxM": {"2026-01": 1.15, "2026-02": 1.15, "2026-03": 1.15, "2026-04": 1.15, "2026-05": 1.15, "2026-06": 1.15, "2026-07": 1.15, "2026-08": 1.15, "2026-09": 1.15, "2026-10": 1.15, "2026-11": 1.15, "2026-12": 1.15, "2027-01": 1.15, "2027-02": 1.15, "2027-03": 1.15, "2027-04": 1.15, "2027-05": 1.15, "2027-06": 1.15, "2027-07": 1.15, "2027-08": 1.15, "2027-09": 1.15, "2027-10": 1.15, "2027-11": 1.15, "2027-12": 1.15, "2028": 1.15, "2029": 1.15, "2030": 1.15}, "dsoM": {"2026-01": 45, "2026-02": 45, "2026-03": 45, "2026-04": 45, "2026-05": 45, "2026-06": 45, "2026-07": 45, "2026-08": 45, "2026-09": 45, "2026-10": 45, "2026-11": 45, "2026-12": 45, "2027-01": 45, "2027-02": 45, "2027-03": 45, "2027-04": 45, "2027-05": 45, "2027-06": 45, "2027-07": 45, "2027-08": 45, "2027-09": 45, "2027-10": 45, "2027-11": 45, "2027-12": 45}, "dpoM": {"2026-01": 30, "2026-02": 30, "2026-03": 30, "2026-04": 30, "2026-05": 30, "2026-06": 30, "2026-07": 30, "2026-08": 30, "2026-09": 30, "2026-10": 30, "2026-11": 30, "2026-12": 30, "2027-01": 30, "2027-02": 30, "2027-03": 30, "2027-04": 30, "2027-05": 30, "2027-06": 30, "2027-07": 30, "2027-08": 30, "2027-09": 30, "2027-10": 30, "2027-11": 30, "2027-12": 30}, "opexStep": {}, "salStep": {}, "bonusPayMonth": {"2026": 2, "2027": 2, "2028": 2, "2029": 2, "2030": 2}, "bonusPayoutPct": {"2026": 1, "2027": 1, "2028": 1, "2029": 1, "2030": 1}}, "revenueUSD": {"prod_unl": {}, "prod_lic": {}, "edl_unl": {}, "edl_lic": {}, "troves_unl": {}, "troves_lic": {}, "services": {}, "grants": {}}, "gmPct": {"prod_unl": {}, "prod_lic": {}, "edl_unl": {}, "edl_lic": {}, "troves_unl": {}, "troves_lic": {}, "services": {}, "grants": {}}, "employees": [], "otherOpex": [], "nonEbitda": {"dep": {}, "wfoa": {}, "interestManual": {}, "otherBTL": {}}, "capex": {"Product sales": {}, "Marketing": {}, "Oxion": {}, "EDL": {}, "Technology": {}, "Operations": {}, "Customer support": {}}, "wcLines": [{"name": "Other working capital 1", "values": {}}, {"name": "Other working capital 2", "values": {}}, {"name": "Other working capital 3", "values": {}}], "financing": {"capitalIn": {}, "otherFin": {}}, "debt": [], "grants": [], "actuals": {}};
+let ROLE='ro'; let currentUser=null; let booted=false; let subscribed=false;
+/* Shared-state integrity. LOAD_OK gates every write: if the shared budget was
+   not read successfully we must never publish the in-memory seed over it. */
+let LOAD_OK=false;        /* the shared budget was read, or is provably absent */
+let LOADED_AT=null;       /* updated_at of the row we read, our version token */
+let SCN_LOADED_AT=null;   /* same for ignion_scenarios */
+let REMOTE_AHEAD=false;   /* a remote save arrived while we held unsaved edits */
+let LOADED_AT_REMOTE=null;/* latest version seen on the live channel */
+const canWrite=()=>ROLE==='rw';
+/* Writing additionally requires a clean load. Read-only users and users whose
+   load failed both lose the Save button, for different reasons. */
+const canSave=()=>canWrite()&&LOAD_OK;
+
+/* ---------- periods ---------- */
+const M26=[...Array(12)].map((_,i)=>'2026-'+String(i+1).padStart(2,'0'));
+const M27=[...Array(12)].map((_,i)=>'2027-'+String(i+1).padStart(2,'0'));
+const MONTHS=[...M26,...M27]; const YEARS=['2028','2029','2030'];
+const PERIODS=[...MONTHS,...YEARS];
+const OUTCOLS=['2025',...MONTHS,...YEARS];
+const isMonth=p=>p.length===7;
+const plabel=p=>{ if(!isMonth(p))return p; const mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; return mn[+p.slice(5)-1]+'-'+p.slice(2,4); };
+const LINES=['prod_unl','prod_lic','edl_unl','edl_lic','troves_unl','troves_lic','services','grants'];
+const LNAME={prod_unl:'Product Unlicensed Single',prod_lic:'Product Licensed & Multiband',edl_unl:'EDL Unlicensed Single',edl_lic:'EDL Licensed & Multiband',troves_unl:'Troves Unlicensed',troves_lic:'Troves Licensed',services:'Services',grants:'Grants'};
+const SNAME={prod_unl:'Prod Unl',prod_lic:'Prod Lic&MB',edl_unl:'EDL Unl',edl_lic:'EDL Lic&MB',troves_unl:'Troves Unl',troves_lic:'Troves Lic',services:'Services',grants:'Grants'};
+function migrateModel(m){
+  if(!m||!m.revenueUSD) return m;
+  if(m.params){ m.params.bonusPayMonth=m.params.bonusPayMonth||{'2026':2,'2027':2,'2028':2,'2029':2,'2030':2};
+    m.params.bonusPayoutPct=m.params.bonusPayoutPct||{'2026':1,'2027':1,'2028':1,'2029':1,'2030':1}; }
+  const blank=()=>{ const o={}; LINES.forEach(l=>o[l]={}); return o; };
+  /* actuals revenue: migrate per month by its own shape, regardless of the forecast shape.
+     Only remap when the new-taxonomy keys are empty, so real values are never overwritten. */
+  if(m.actuals){ const omap={product:'prod_lic',service:'services',edl:'edl_unl',oxion:'troves_unl',grants:'grants'};
+    for(const p in m.actuals){ const a=m.actuals[p]; if(!a||!a.revenue) continue; const r=a.revenue;
+      let sumNew=0; LINES.forEach(l=>{ if(l!=='grants') sumNew+=Math.abs(num(r[l])); }); /* grants key is shared across taxonomies */
+      if(sumNew===0 && r.product!==undefined){ const nr={}; LINES.forEach(l=>nr[l]=0);
+        for(const k in omap) nr[omap[k]]=num(r[k]); a.revenue=nr; }
+      else if(sumNew!==0 && r.services===undefined && r.prod_unl!==undefined && num(r.prod_lic)===0 && num(r.prod_unl)!==0){
+        const nr={}; LINES.forEach(l=>nr[l]=num(r[l])); nr.services=num(r.prod_lic); nr.prod_lic=num(r.prod_unl); nr.prod_unl=0; a.revenue=nr; }
+    } }
+  if(m.revenueUSD.product!==undefined){ /* original five-line shape */
+    const map={product:'prod_lic',service:'services',edl:'edl_unl',oxion:'troves_unl',grants:'grants'};
+    const remap=o=>{ const out=blank(); for(const k in map){ if(o&&o[k]) out[map[k]]=o[k]; } return out; };
+    m.revenueUSD=remap(m.revenueUSD); m.gmPct=remap(m.gmPct);
+    if(m.actuals) for(const p in m.actuals){ const a=m.actuals[p]; if(a&&a.revenue&&a.revenue.product!==undefined){
+      const nr={}; LINES.forEach(l=>nr[l]=0); for(const k in map){ nr[map[k]]=num((a.revenue||{})[k]); } a.revenue=nr; } }
+    return m;
+  }
+  if(m.revenueUSD.services===undefined&&m.revenueUSD.prod_unl!==undefined){ /* intermediate taxonomy: product sat on unlicensed, service on licensed */
+    const shift=o=>{ const out=blank(); for(const l of LINES){ if(o&&o[l]) out[l]=o[l]; }
+      out.services=o&&o.prod_lic?o.prod_lic:{}; out.prod_lic=o&&o.prod_unl?o.prod_unl:{}; out.prod_unl={}; return out; };
+    m.revenueUSD=shift(m.revenueUSD); m.gmPct=shift(m.gmPct);
+    if(m.actuals) for(const p in m.actuals){ const a=m.actuals[p]; if(a&&a.revenue&&a.revenue.services===undefined){
+      const r=a.revenue; const nr={}; LINES.forEach(l=>nr[l]=num(r[l]));
+      nr.services=num(r.prod_lic); nr.prod_lic=num(r.prod_unl); nr.prod_unl=0; a.revenue=nr; } }
+    return m;
+  }
+  return m;
+}
+const DEPTS=MODEL.params.depts;
+const closed=p=>isMonth(p)&&p<=MODEL.params.closedThrough;
+const fxAt=p=>num((MODEL.params.fxM||{})[p])||num(MODEL.params.fx)||1.10;
+const dsoAt=p=>num((MODEL.params.dsoM||{})[p])||num(MODEL.params.dso)||45;
+const dpoAt=p=>num((MODEL.params.dpoM||{})[p])||30;
+const num=v=>{const n=parseFloat(String(v).replace(/[^0-9eE+.\-]/g,''));return isNaN(n)?0:n;};
+const fmtM=(v,cur)=>{ if(v==null||isNaN(v))return '-'; if(Math.abs(v)<1000)return '-';
+  const c=cur||'\u20AC'; const s=c+(Math.abs(v)/1e6).toFixed(1)+'M'; return v<0?'('+s+')':s; };
+const fmt0=v=>{ if(v==null||isNaN(v))return '-'; const r=Math.round(v); if(r===0)return '-';
+  const s='\u20AC'+Math.abs(r).toLocaleString('en-GB'); return r<0?'('+s+')':s; };
+const fmtDate=iso=>{ if(!iso)return ''; const s=String(iso).slice(0,10); const m=s.match(/^(\d{4})-(\d{2})(?:-(\d{2}))?/);
+  if(!m)return String(iso); return (m[3]||'01')+'.'+m[2]+'.'+m[1]; };
+const parseDate=v=>{ const s=String(v||'').trim(); let m=s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+  if(m) return m[3]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[1]).padStart(2,'0');
+  m=s.match(/^(\d{4})-(\d{2})(-(\d{2}))?$/); if(m) return m[1]+'-'+m[2]+'-'+(m[4]||'01'); return s; };
+const fmt=(v,cur)=>{ if(v==null||isNaN(v))return '-'; if(Math.round(v*100)===0)return '-';
+  const c=cur||'\u20AC'; const a=Math.abs(v);
+  const s = a>=1e6 ? c+(a/1e6).toFixed(2)+'M' : c+a.toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2});
+  return v<0?'('+s+')':s; };
+
+/* ---------- compute engine ---------- */
+function activeInMonth(e,p){
+  if(!isMonth(p)){ /* annual periods: active at year end */
+    const ye=p+'-12';
+    if(e.start && e.start.slice(0,7)>ye) return false;
+    if(e.dismiss==='Yes' && e.dismissDate && ye>=e.dismissDate) return false;
+    return true;
+  }
+  if(e.start && e.start.slice(0,7)>p) return false;
+  if(e.dismiss==='Yes' && e.dismissDate && p>=e.dismissDate) return false;
+  return true;
+}
+function activeMonthsInYear(e,Y){
+  let a=1,b=12;
+  if(e.start){ const sy=e.start.slice(0,4), sm=parseInt(e.start.slice(5,7))||1;
+    if(sy>Y) return 0; if(sy===Y) a=sm; }
+  if(e.dismiss==='Yes'&&e.dismissDate){ const dy=String(e.dismissDate).slice(0,4), dm=parseInt(String(e.dismissDate).slice(5,7))||1;
+    if(dy<Y) return 0; if(dy===Y) b=dm-1; }
+  return Math.max(0,b-a+1);
+}
+function chainOf(store,dept,Y){ let f=1;
+  for(const y of ['2028','2029','2030']){ if(y>Y)break;
+    const v=((MODEL.params[store]||{})[dept]||{})[y]; f*= 1+num(v); }
+  return f;
+}
+function bpPct(Y){ const v=(MODEL.params.bonusPayoutPct||{})[Y]; return v==null?1:num(v); }
+function bpMonth(Y){ const m=parseInt((MODEL.params.bonusPayMonth||{})[Y]); return (m>=1&&m<=12)?m:2; }
+function bonusAccrualAt(p){ /* bonus accrued inside comp in an open month */
+  const yr=p.slice(0,4); let s=0;
+  for(const e of MODEL.employees){ if(activeInMonth(e,p)) s+=num(e.bonusAnnual)*bpPct(yr)/12; }
+  return s;
+}
+function bonusAccrualYear(Y){ /* full-year bonus entitlement, service-month prorated, chain indexed */
+  let s=0;
+  for(const e of MODEL.employees){ const m=activeMonthsInYear(e,Y); if(m>0) s+=num(e.bonusAnnual)*bpPct(Y)/12*m*chainOf('salStep',e.dept,Y); }
+  return s;
+}
+function sevRuleFor(e){
+  const P=MODEL.params; const type=P.dismissalType||'objective';
+  if(e.country==='Spain') return type==='unfair' ? {days:33,capMonths:24} : {days:20,capMonths:12};
+  const DEF={'China':{days:30,capMonths:12},'United States':{days:0,capMonths:0},'Ireland':{days:14,capMonths:0},'Hungary':{days:30,capMonths:6}};
+  const r=(P.sevRules||{})[e.country]; const d=DEF[e.country]||{days:20,capMonths:12};
+  return { days: (r&&r.days!=null&&r.days!=='')? num(r.days) : d.days,
+           capMonths: (r&&r.capMonths!=null&&r.capMonths!=='')? num(r.capMonths) : d.capMonths };
+}
+function sevRedundancyCalc(e){
+  const st=e.start? String(e.start).slice(0,7) : null;
+  const dd=e.dismissDate? String(e.dismissDate).slice(0,7) : null;
+  if(!st||!dd||dd<st) return 0;
+  const months=(parseInt(dd.slice(0,4))-parseInt(st.slice(0,4)))*12+(parseInt(dd.slice(5,7))-parseInt(st.slice(5,7)))+1;
+  const yrs=months/12;
+  const annual=num(e.grossMonthly)*12+num(e.bonusAnnual)+num(e.variableAnnual);
+  const r=sevRuleFor(e);
+  let v=(annual/365)*r.days*yrs;
+  if(r.capMonths>0) v=Math.min(v,(annual/12)*r.capMonths);
+  return v;
+}
+function sevTotal(e){ return sevRedundancyCalc(e)+num(e.sevNotice)+num(e.sevNonCompete); }
+function sevBookedInMonth(p){ let s=0; for(const e of MODEL.employees){ if(e.dismiss==='Yes'&&e.dismissDate===p) s+=sevTotal(e); } return s; }
+function sevBookedInYear(Y){ let s=0; for(const e of MODEL.employees){ if(e.dismiss==='Yes'&&String(e.dismissDate||'').slice(0,4)===String(Y)) s+=sevTotal(e); } return s; }
+function empCost(e,p){ /* monthly gross + social security + (bonus + variable)/12 */
+  const ss=MODEL.params.ssRates[e.country] ?? 0.25;
+  const loaded = num(e.grossMonthly)*(1+ss)+(num(e.bonusAnnual)*bpPct(p.slice(0,4))+num(e.variableAnnual))/12;
+  if(isMonth(p)){
+    let sev=0;
+    if(e.dismiss==='Yes' && e.dismissDate===p) sev=sevTotal(e);
+    return (activeInMonth(e,p)?loaded:0) + sev;
+  }
+  const months=activeMonthsInYear(e,p);
+  let sev=0;
+  if(e.dismiss==='Yes'&&e.dismissDate&&String(e.dismissDate).slice(0,4)===p) sev=sevTotal(e);
+  return loaded*months*chainOf('salStep',e.dept,p) + sev;
+}
+function compByDept(p){
+  const out={}; DEPTS.forEach(d=>out[d]=0);
+  for(const e of MODEL.employees){ const d=e.dept; out[d]=(out[d]||0)+empCost(e,p); }
+  return out;
+}
+function rowOpexAt(r,p){
+  if(isMonth(p)) return num((r.values||{})[p]);
+  const v=r.values||{};
+  let base27=0,has27=false;
+  for(const k in v){ if(k.slice(0,4)==='2027'&&k.length===7&&num(v[k])!==0){ has27=true; base27+=num(v[k]); } }
+  if(has27) return base27*chainOf('opexStep',r.dept,p);
+  return num(v[p])*chainOf('opexStep',r.dept,p);
+}
+function otherOpexByDept(p){
+  const out={}; DEPTS.forEach(d=>out[d]=0);
+  for(const row of MODEL.otherOpex){ out[row.dept]=(out[row.dept]||0)+rowOpexAt(row,p); }
+  return out;
+}
+function P(period){ /* one period P&L, forecast basis */
+  const fx=fxAt(period);
+  const rev={},cogs={};
+  let trev=0,tcogs=0;
+  for(const l of LINES){
+    const eur=num((MODEL.revenueUSD[l]||{})[period])/fx;
+    const g=num((MODEL.gmPct[l]||{})[period]);
+    rev[l]=eur; cogs[l]=-eur*(1-g); trev+=eur; tcogs+=cogs[l];
+  }
+  const comp=compByDept(period), oo=otherOpexByDept(period);
+  const opex={}; let topex=0;
+  DEPTS.forEach(d=>{opex[d]=(comp[d]||0)+(oo[d]||0); topex+=opex[d];});
+  const ebitda=trev+tcogs-topex;
+  const ne=MODEL.nonEbitda;
+  const dep=num(ne.dep[period]), wfoa=num(ne.wfoa[period]);
+  let int_=num((ne.interestManual||{})[period]);
+  for(const d of MODEL.debt) int_-=num((d.interest||{})[period]);
+  const obt=num(ne.otherBTL[period]);
+  const ebt=ebitda+dep+wfoa+int_+obt;
+  const tax = ebt>0 ? -ebt*num(MODEL.params.taxRate) : 0;
+  return {rev,cogs,trev,tcogs,gm:trev+tcogs,comp,otherOpex:oo,opex,topex,ebitda,dep,wfoa,interest:int_,otherBTL:obt,ebt,tax,net:ebt+tax};
+}
+function A(period){ /* actual overlay if closed */
+  const a=MODEL.actuals[period]; if(!a)return null;
+  const rev=a.revenue, trev=LINES.reduce((s,l)=>s+num(rev[l]),0);
+  const tcogs=num(a.cogs);
+  const opex=a.opex, topex=DEPTS.reduce((s,d)=>s+num(opex[d]),0);
+  let comp=null, oo=null;
+  if(isMonth(period)){ /* booked comp per dept when the close provided it; register-derived otherwise. Non-comp is the residual to the actual total. */
+    const hasBooked=a.comp && DEPTS.some(d=>num(a.comp[d])!==0);
+    comp={}; const reg=hasBooked?null:compByDept(period);
+    DEPTS.forEach(d=>{ comp[d]=hasBooked?num(a.comp[d]):num(reg[d]); });
+    oo={}; DEPTS.forEach(d=>{ oo[d]=num(opex[d])-num(comp[d]); });
+  }
+  const ebitda=trev+tcogs-topex;
+  const ebt=ebitda+num(a.dep)+num(a.wfoa)+num(a.interest)+num(a.otherBTL);
+  return {rev,cogs:null,trev,tcogs,gm:trev+tcogs,comp,otherOpex:oo,opex,topex,ebitda,
+    dep:num(a.dep),wfoa:num(a.wfoa),interest:num(a.interest),otherBTL:num(a.otherBTL),ebt,tax:num(a.taxes),net:ebt+num(a.taxes),actual:true};
+}
+function pl(period){ if(period==='2025'||closed(period)){const a=A(period); if(a)return a;} return P(period); }
+
+function flowMaps(){
+  const revE={},costE={};
+  for(const p of MONTHS){ const x=pl(p);
+    let n=0; for(const l of LINES) if(l!=='grants') n+=num(x.rev[l]);
+    revE[p]=n; costE[p]=x.tcogs-x.topex; /* negative */
+    if(!closed(p)) costE[p]+=bonusAccrualAt(p); /* bonus does not pay monthly; it pays as a lump */ }
+  const coll=Array(MONTHS.length).fill(0), pay=Array(MONTHS.length).fill(0);
+  const outColl=Array(MONTHS.length).fill(0); /* revenue of month i collected beyond horizon */
+  MONTHS.forEach((p,i)=>{
+    const kR=dsoAt(p)/30, fR=Math.floor(kR), rR=kR-fR;
+    [[i+fR,1-rR],[i+fR+1,rR]].forEach(([j,s])=>{ if(s<=0)return; if(j<MONTHS.length) coll[j]+=revE[p]*s; else outColl[i]+=revE[p]*s; });
+    const kP=dpoAt(p)/30, fP=Math.floor(kP), rP=kP-fP;
+    [[i+fP,1-rP],[i+fP+1,rP]].forEach(([j,s])=>{ if(s<=0)return; if(j<MONTHS.length) pay[j]+=costE[p]*s; });
+  });
+  /* bonus lumps: year N pays in month bpMonth(N) of year N+1 */
+  for(const N of ['2026']){ const tgt=String(+N+1)+'-'+String(bpMonth(N)).padStart(2,'0');
+    const j=MONTHS.indexOf(tgt); if(j>=0) pay[j]-=bonusAccrualYear(N); }
+  return {revE,costE,coll,pay,outColl};
+}
+function cashflow(){
+  const FM=flowMaps();
+  const res={};
+  let cash=num(MODEL.params.openingCash);
+  MONTHS.forEach((p,i)=>{
+    const coll=FM.coll[i], paid=FM.pay[i];
+    let wc=0; for(const w of MODEL.wcLines) wc+=num((w.values||{})[p]);
+    let grantIn=0,grantRep=0;
+    for(const g of MODEL.grants){grantIn+=num((g.collections||{})[p]);grantRep-=num((g.repayments||{})[p]);}
+    let debtIn=0,debtRep=0,debtInt=0;
+    for(const d of MODEL.debt){debtIn+=num((d.drawdowns||{})[p]);debtRep-=num((d.repayments||{})[p]);debtInt-=num((d.interest||{})[p]);}
+    const capIn=num((MODEL.financing.capitalIn||{})[p]), otherFin=num((MODEL.financing.otherFin||{})[p]);
+    let cap=0; for(const d of DEPTS) cap+=num((MODEL.capex[d]||{})[p]);
+    const cfo=coll+paid+wc+debtInt;
+    const cff=capIn+debtIn+debtRep+grantIn+grantRep+otherFin;
+    const ncf=cfo+cap+cff;
+    const a=MODEL.actuals[p];
+    if(closed(p)&&a&&a.cashClose){
+      if(a.cf){ /* booked cash statement supersedes the modelled flows */
+        const c=a.cf;
+        const op=num(c.ebitda)+num(c.bonus26)+num(c.bonus25)+num(c.wcadj);
+        const bwc=num(c.owc), bint=num(c.interest);
+        const bcfo=op+bwc+bint;
+        const bcfi=num(c.capex);
+        const bcff=num(c.debtRep)+num(c.debtIn)+num(c.capIn)+num(c.grantIn);
+        const bncf=bcfo+bcfi+bcff;
+        const recon=num(a.cashClose)-(cash+bncf);
+        res[p]={coll:null,paid:null,opBooked:op,wc:bwc,cfo:bcfo,capex:bcfi,cfi:bcfi,capIn:num(c.capIn),debtIn:num(c.debtIn),debtRep:num(c.debtRep),debtInt:bint,grantIn:num(c.grantIn),grantRep:0,otherFin:0,cff:bcff,ncf:bncf,recon,open:cash,close:num(a.cashClose),actual:true};
+        cash=num(a.cashClose);
+      } else {
+        const recon=num(a.cashClose)-(cash+ncf);
+        res[p]={coll,paid,wc,cfo,capex:cap,cfi:cap,capIn,debtIn,debtRep,debtInt,grantIn,grantRep,otherFin,cff,ncf,recon,open:cash,close:num(a.cashClose),actual:true}; cash=num(a.cashClose);
+      } }
+    else { res[p]={coll,paid,wc,cfo,capex:cap,cfi:cap,capIn,debtIn,debtRep,debtInt,grantIn,grantRep,otherFin,cff,ncf,recon:0,open:cash,close:cash+ncf}; cash=cash+ncf; }
+  });
+  for(const y of YEARS){
+    const x=pl(y);
+    let wc=0; for(const w of MODEL.wcLines) wc+=num((w.values||{})[y]);
+    let grantIn=0,grantRep=0,debtIn=0,debtRep=0,debtInt=0;
+    for(const g of MODEL.grants){grantIn+=num((g.collections||{})[y]);grantRep-=num((g.repayments||{})[y]);}
+    for(const d of MODEL.debt){debtIn+=num((d.drawdowns||{})[y]);debtRep-=num((d.repayments||{})[y]);debtInt-=num((d.interest||{})[y]);}
+    const capIn=num((MODEL.financing.capitalIn||{})[y]), otherFin=num((MODEL.financing.otherFin||{})[y]);
+    let cap=0; for(const d of DEPTS) cap+=num((MODEL.capex[d]||{})[y]);
+    const cfo=x.ebitda+wc+debtInt+bonusAccrualYear(y)-bonusAccrualYear(String(+y-1));
+    const cff=capIn+debtIn+debtRep+grantIn+grantRep+otherFin;
+    const ncf=cfo+cap+cff;
+    res[y]={coll:null,paid:null,wc,cfo,capex:cap,cfi:cap,capIn,debtIn,debtRep,debtInt,grantIn,grantRep,otherFin,cff,ncf,recon:0,open:cash,close:cash+ncf};
+    cash+=ncf;
+  }
+  return res;
+}
+function ytd26(){
+  const ct=MODEL.params.closedThrough;
+  let out={trev:0,ebitda:0,net:0,na:0};
+  for(const p of M26){ const x=pl(p); out.trev+=x.trev; out.ebitda+=x.ebitda; out.net+=x.net; if(closed(p))out.na++; }
+  return out;
+}
+
+/* ---------- annual aggregation for the overview ---------- */
+/* ---------- svg charts, Ignion palette ---------- */
+function stackChart(cats,series,intLabels){
+  const W=560,H=250,L=42,B=28;
+  const totals=cats.map((_,i)=>series.reduce((s,sr)=>s+Math.max(sr.vals[i],0),0));
+  const mx=Math.max(...totals,1);
+  const bw=(W-L-16)/cats.length*0.62, gap=(W-L-16)/cats.length;
+  let s='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%">';
+  for(let i=0;i<cats.length;i++){
+    let y0=H-B;
+    series.forEach(sr=>{ const v=Math.max(sr.vals[i],0); const hh=v/mx*(H-B-38);
+      if(hh>0.5){ s+='<rect x="'+(L+i*gap+ (gap-bw)/2)+'" y="'+(y0-hh)+'" width="'+bw+'" height="'+hh+'" fill="'+sr.color+'"/>'; y0-=hh; } });
+    s+='<text x="'+(L+i*gap+gap/2)+'" y="'+(y0-5)+'" font-size="11" font-weight="bold" fill="#282828" text-anchor="middle">'+(intLabels?Math.round(totals[i]):totals[i].toFixed(1))+'</text>';
+    s+='<text x="'+(L+i*gap+gap/2)+'" y="'+(H-8)+'" font-size="11" fill="#8A8078" text-anchor="middle">'+cats[i]+'</text>';
+  }
+  let lx=L; series.forEach(sr=>{ s+='<rect x="'+lx+'" y="4" width="9" height="9" fill="'+sr.color+'"/><text x="'+(lx+12)+'" y="12" font-size="10" fill="#282828">'+sr.name+'</text>'; lx+=12+sr.name.length*5.6+14; });
+  return s+'</svg>';
+}
+function barChart(cats,vals,pcts){
+  const W=560,H=250,L=42,B=28;
+  const mx=Math.max(...vals.map(v=>Math.abs(v||0)),1);
+  const gap=(W-L-16)/cats.length, bw=gap*0.62;
+  const zero=(H-B+38)/2 + (H-B-38)/2*0; const Y=v=>{const half=(H-B-38)/2; return 38+half - v/mx*half;};
+  let s='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%">';
+  s+='<line x1="'+L+'" y1="'+Y(0)+'" x2="'+(W-10)+'" y2="'+Y(0)+'" stroke="#C9BEB6"/>';
+  cats.forEach((c,i)=>{ const v=vals[i]||0; const y1=Y(Math.max(v,0)), y2=Y(Math.min(v,0));
+    s+='<rect x="'+(L+i*gap+(gap-bw)/2)+'" y="'+y1+'" width="'+bw+'" height="'+Math.max(y2-y1,1)+'" fill="'+(v<0?'#FB3344':'#C72030')+'"/>';
+    s+='<text x="'+(L+i*gap+gap/2)+'" y="'+(v>=0?y1-5:y2+13)+'" font-size="11" font-weight="bold" fill="#282828" text-anchor="middle">'+v.toFixed(1)+'</text>';
+    if(pcts&&pcts[i]!=null) s+='<text x="'+(L+i*gap+gap/2)+'" y="'+(v>=0?y1-17:y2+25)+'" font-size="10" fill="#8A8078" text-anchor="middle">'+(pcts[i]*100).toFixed(0)+'%</text>';
+    s+='<text x="'+(L+i*gap+gap/2)+'" y="'+(H-8)+'" font-size="11" fill="#8A8078" text-anchor="middle">'+c+'</text>'; });
+  return s+'</svg>';
+}
+
+/* ---------- annual aggregation (overview) ---------- */
+function integrityCheck(){ /* independently re-sums the monthly detail and compares to the annual summaries */
+  const bad=[]; const tol=0.01;
+  const AP={'2026':annualPL('2026'),'2027':annualPL('2027')};
+  const cf=cashflow(); const AC=annualCF();
+  for(const Y of ['2026','2027']){
+    const ms=yearMonths(Y);
+    const s={trev:0,tcogs:0,topex:0,ebitda:0,dep:0,wfoa:0,interest:0,otherBTL:0,tax:0,net:0};
+    const cd={},nd={}; DEPTS.forEach(d=>{cd[d]=0;nd[d]=0;});
+    for(const p of ms){ const x=pl(p);
+      s.trev+=x.trev; s.tcogs+=x.tcogs; s.topex+=x.topex; s.ebitda+=x.ebitda;
+      s.dep+=x.dep; s.wfoa+=x.wfoa; s.interest+=x.interest; s.otherBTL+=x.otherBTL; s.tax+=x.tax; s.net+=x.net;
+      if(x.comp&&x.otherOpex) DEPTS.forEach(d=>{cd[d]+=num(x.comp[d]); nd[d]+=num(x.otherOpex[d]);});
+    }
+    for(const k in s){ if(Math.abs(s[k]-num(AP[Y][k]))>tol) bad.push('P&L '+Y+' '+k+': months '+Math.round(s[k])+' vs annual '+Math.round(num(AP[Y][k]))); }
+    DEPTS.forEach(d=>{ if(Math.abs(cd[d]-num(AP[Y].comp[d]))>tol) bad.push('P&L '+Y+' comp '+d);
+      if(Math.abs(nd[d]-num(AP[Y].otherOpex[d]))>tol) bad.push('P&L '+Y+' non-comp '+d); });
+    let cfo=0,cap=0,cff=0,ncf=0,rec=0;
+    for(const p of ms){ cfo+=cf[p].cfo; cap+=cf[p].capex; cff+=cf[p].cff; ncf+=cf[p].ncf; rec+=(cf[p].recon||0); }
+    const A=AC[Y];
+    if(Math.abs(cfo-A.cfo)>tol) bad.push('cash '+Y+' operations: months '+Math.round(cfo)+' vs annual '+Math.round(A.cfo));
+    if(Math.abs(cap-A.capex)>tol) bad.push('cash '+Y+' investments');
+    if(Math.abs(cff-A.cff)>tol) bad.push('cash '+Y+' financing');
+    if(Math.abs(ncf-A.ncf)>tol) bad.push('cash '+Y+' net cash flow');
+    if(Math.abs(rec-(A.recon||0))>tol) bad.push('cash '+Y+' reconciliation');
+    if(Math.abs(cf[ms[0]].open-A.open)>tol) bad.push('cash '+Y+' opening');
+    if(Math.abs(cf[ms[11]].close-A.close)>tol) bad.push('cash '+Y+' closing');
+    if(Math.abs(A.open+A.ncf+(A.recon||0)-A.close)>tol) bad.push('cash '+Y+' does not foot');
+  }
+  return bad;
+}
+const YRS=['2025','2026','2027','2028','2029','2030'];
+function yearMonths(Y){ return Y==='2026'?M26 : Y==='2027'?M27 : null; }
+function annualPL(Y){
+  if(Y==='2025'){ return A('2025'); }
+  const ms=yearMonths(Y);
+  if(!ms) return pl(Y);
+  const agg={rev:{},trev:0,tcogs:0,gm:0,comp:{},otherOpex:{},opex:{},topex:0,ebitda:0,dep:0,wfoa:0,interest:0,otherBTL:0,ebt:0,tax:0,net:0};
+  LINES.forEach(l=>agg.rev[l]=0); DEPTS.forEach(d=>{agg.opex[d]=0;agg.comp[d]=0;agg.otherOpex[d]=0;});
+  for(const p of ms){ const x=pl(p);
+    LINES.forEach(l=>agg.rev[l]+=num(x.rev[l]));
+    DEPTS.forEach(d=>{agg.opex[d]+=num(x.opex[d]); if(x.comp)agg.comp[d]+=num(x.comp[d]); else agg.comp[d]=null; if(x.otherOpex)agg.otherOpex[d]+=num(x.otherOpex[d]);});
+    agg.trev+=x.trev; agg.tcogs+=x.tcogs; agg.gm+=x.gm; agg.topex+=x.topex; agg.ebitda+=x.ebitda;
+    agg.dep+=x.dep; agg.wfoa+=x.wfoa; agg.interest+=x.interest; agg.otherBTL+=x.otherBTL; agg.ebt+=x.ebt; agg.tax+=x.tax; agg.net+=x.net;
+  }
+  return agg;
+}
+function annualCF(){
+  const cf=cashflow(); const FM=flowMaps();
+  function collFromPrior(Y){ const ms=yearMonths(Y); if(!ms) return null;
+    let t=0;
+    MONTHS.forEach((p,i)=>{ if(p.slice(0,4)>=Y) return;
+      const k=dsoAt(p)/30, f=Math.floor(k), r=k-f;
+      [[i+f,1-r],[i+f+1,r]].forEach(([j,s])=>{ if(s>0&&j<MONTHS.length&&MONTHS[j].slice(0,4)===Y) t+=FM.revE[p]*s; }); });
+    return t; }
+  function revOut(Y){ const ms=yearMonths(Y); if(!ms) return null;
+    let t=0;
+    ms.forEach(p=>{ const i=MONTHS.indexOf(p);
+      const k=dsoAt(p)/30, f=Math.floor(k), r=k-f;
+      [[i+f,1-r],[i+f+1,r]].forEach(([j,s])=>{ if(s>0&&(j>=MONTHS.length||MONTHS[j].slice(0,4)>Y)) t+=FM.revE[p]*s; }); });
+    return -t; }
+  const out={};
+  for(const Y of YRS){
+    if(Y==='2025'){ out[Y]={close:num(MODEL.params.openingCash)}; continue; }
+    const ms=yearMonths(Y);
+    if(ms){ const first=cf[ms[0]], last=cf[ms[11]];
+      let cfo=0,capex=0,cff=0,ncf=0,capIn=0,dIn=0,dRep=0,gIn=0,gRep=0,oFin=0,recon=0;
+      for(const p of ms){ const x=cf[p]; cfo+=x.cfo; capex+=x.capex; cff+=x.cff; ncf+=x.ncf; capIn+=x.capIn; dIn+=x.debtIn; dRep+=x.debtRep; gIn+=x.grantIn; gRep+=x.grantRep; oFin+=x.otherFin; recon+=(x.recon||0); }
+      const eb=annualPL(Y).ebitda, rin=collFromPrior(Y), rout=revOut(Y);
+      out[Y]={ebitda:eb,revIn:rin,revOut:rout,otherWC:cfo-eb-(rin||0)-(rout||0),cfo,capex,capIn,dIn,dRep,gIn,gRep,oFin,cff,ncf,recon,open:first.open,close:last.close};
+    } else {
+      const x=cf[Y]; const eb=annualPL(Y).ebitda;
+      out[Y]={ebitda:eb,revIn:null,revOut:null,otherWC:x.cfo-eb,cfo:x.cfo,capex:x.capex,capIn:x.capIn,dIn:x.debtIn,dRep:x.debtRep,gIn:x.grantIn,gRep:x.grantRep,oFin:x.otherFin,cff:x.cff,ncf:x.ncf,recon:0,open:x.open,close:x.close};
+    }
+  }
+  return out;
+}
+function fteAt(Y){
+  const ref = Y+'-12';
+  const out={}; DEPTS.forEach(d=>out[d]=0);
+  for(const e of MODEL.employees){
+    if(e.start && e.start.slice(0,7)>ref) continue;
+    if(Y!=='2025' && e.dismiss==='Yes' && e.dismissDate && ref>=e.dismissDate) continue;
+    out[e.dept]=(out[e.dept]||0)+1;
+  }
+  return out;
+}
+const IGCOLS=['#660708','#C72030','#FB3344','#FC6C78','#FDA5AD','#282828','#8A8078','#C9BEB6'];
+const CW=1240, CL=190, CR=20;
+const slotX=i=>CL+(CW-CL-CR)*(i+0.5)/6;
+let CHN=0;
+function chartHead(title){ const id='ch_'+(CHN++);
+  return {id, html:'<div class="card" id="'+id+'"><div class="chead"><h2>'+title+'</h2><button class="cbtn" data-chart="'+id+'">Copy PNG</button></div>'}; }
+function barChart(title,labels,vals,fmtv){
+  const H=250; const mx=Math.max(...vals,0),mn=Math.min(...vals,0);
+  const Y=v=>30+(mx-v)*(H-78)/((mx-mn)||1); const bw=(CW-CL-CR)/6*0.5;
+  const ch=chartHead(title);
+  let s=ch.html+'<svg viewBox="0 0 '+CW+' '+H+'" style="width:100%" font-family="Arial">';
+  s+='<line x1="'+CL+'" y1="'+Y(0)+'" x2="'+(CW-CR)+'" y2="'+Y(0)+'" stroke="#C9BEB6"/>';
+  vals.forEach((v,i)=>{ const x=slotX(i)-bw/2; const y0=Y(Math.max(v,0)), h2=Math.abs(Y(0)-Y(v));
+    s+='<rect x="'+x+'" y="'+y0+'" width="'+bw+'" height="'+Math.max(h2,1)+'" rx="3" fill="'+(v<0?'#FB3344':'#C72030')+'"/>';
+    s+='<text x="'+slotX(i)+'" y="'+(v>=0?y0-9:y0+h2+26)+'" font-size="28" fill="#282828" text-anchor="middle" font-weight="bold">'+fmtv(v)+'</text>';
+    s+='<text x="'+slotX(i)+'" y="'+(H-6)+'" font-size="24" fill="#8A8078" text-anchor="middle">'+labels[i]+'</text>'; });
+  return s+'</svg></div>';
+}
+function stackChart(title,labels,series,names,fmtv){
+  const H=300;
+  const totals=labels.map((_,i)=>series.reduce((s,sr)=>s+Math.max(sr[i],0),0));
+  const mx=Math.max(...totals,1); const Y=v=>34+(mx-v)*(H-112)/mx; const bw=(CW-CL-CR)/6*0.5;
+  const ch=chartHead(title);
+  let s=ch.html+'<svg viewBox="0 0 '+CW+' '+H+'" style="width:100%" font-family="Arial">';
+  labels.forEach((lb,i)=>{ const x=slotX(i)-bw/2; let acc=0;
+    series.forEach((sr,j)=>{ const v=Math.max(sr[i],0); if(v<=0)return;
+      const y1=Y(acc+v), h2=Y(acc)-Y(acc+v);
+      s+='<rect x="'+x+'" y="'+y1+'" width="'+bw+'" height="'+Math.max(h2,.5)+'" fill="'+IGCOLS[j%IGCOLS.length]+'"/>';
+      acc+=v; });
+    s+='<text x="'+slotX(i)+'" y="'+(Y(acc)-9)+'" font-size="28" fill="#282828" text-anchor="middle" font-weight="bold">'+fmtv(acc)+'</text>';
+    s+='<text x="'+slotX(i)+'" y="'+(H-40)+'" font-size="24" fill="#8A8078" text-anchor="middle">'+lb+'</text>'; });
+  names.forEach((nm,j)=>{ const lx=CL+j*126;
+    s+='<rect x="'+lx+'" y="'+(H-24)+'" width="17" height="17" fill="'+IGCOLS[j%IGCOLS.length]+'"/><text x="'+(lx+23)+'" y="'+(H-9)+'" font-size="20" fill="#282828">'+nm+'</text>'; });
+  return s+'</svg></div>';
+}
+
+/* ---------- UI ---------- */
+const SECTIONS=[['overview','Overview'],['pnl','P&L'],['cf','Cashflow'],['params','Parameters'],['revenue','Revenue & GM'],
+ ['comp','Compensation'],['opex','Other OPEX'],['btl','Below EBITDA'],['inv','Capex & WC'],['fin','Financing'],
+ ['debt','Debt'],['grants','Grants']];
+let CUR='overview';
+function nav(){
+  $('nav').innerHTML=SECTIONS.map(([k,l])=>'<button class="'+(k===CUR?'on':'')+'" data-s="'+k+'">'+l+'</button>').join('');
+  $('nav').querySelectorAll('button').forEach(b=>b.onclick=()=>{CUR=b.dataset.s;render();});
+}
+function inputCell(val,path,opts){
+  const o=opts||{}; const kind=o.kind||'num';
+  if(kind==='txt'||kind==='plain'||kind==='date')
+    return '<input class="cell'+(o.wide?' wide':'')+'" '+(canWrite()?'':'disabled ')+'value="'+(val==null?'':String(val).replace(/"/g,'&quot;'))+'" data-path="'+path+'" data-kind="'+kind+'">';
+  const v=(val==null||val==='')?null:num(val);
+  let disp='',raw='';
+  if(v!=null&&v!==0){
+    if(kind==='pct'){ disp=Math.round(v*100)+'%'; raw=String(Math.round(v*100)); }
+    else{ const c=o.cur||'\u20AC'; const dec=Number.isInteger(v)?0:2;
+      const s=Math.abs(v).toLocaleString('en-GB',{minimumFractionDigits:dec,maximumFractionDigits:dec});
+      disp=(v<0?'-':'')+c+s; raw=String(v); }
+  }
+  return '<input class="cell'+(o.wide?' wide':'')+'" '+(canWrite()?'':'disabled ')+'value="'+disp+'" data-raw="'+raw+'" data-path="'+path+'" data-kind="'+kind+'">';
+}
+function bindInputs(){
+  $('main').querySelectorAll('input.cell,select.cell').forEach(el=>{
+    if(el.dataset&&(el.dataset.kind==='num'||el.dataset.kind==='pct'))
+      el.onfocus=()=>{ el.value=el.dataset.raw||''; el.select&&el.select(); };
+    el.onchange=()=>{ if(!canWrite())return;
+      const path=el.dataset.path.split('|'); let o=MODEL;
+      for(let i=0;i<path.length-1;i++){ if(o[path[i]]==null)o[path[i]]={}; o=o[path[i]]; }
+      const k=path[path.length-1]; const kind=el.dataset.kind;
+      if(kind==='txt'||kind==='plain') o[k]=el.value;
+      else if(kind==='date') o[k]=parseDate(el.value);
+      else if(kind==='pct') o[k]= el.value===''?0:num(el.value)/100;
+      else o[k]= el.value===''?0:num(el.value);
+      dirty=true; render();
+    };
+  });
+}
+function grid(rows,cols,get,pathf,head0,opts){
+  const o=opts||{}; const cur=o.cur||'\u20AC';
+  const show=v=> o.int? (v?String(Math.round(v)):'-') : o.avg? ((v*100).toFixed(0)+'%') : o.plain? (v?(Number.isInteger(+v)?String(v):(+v).toFixed(2)):'-') : fmt(v,cur);
+  const hasFY=y=>cols.includes(y+'-12');
+  const cells=[];
+  for(const p of cols){ cells.push({p}); if(p.endsWith('-12')&&hasFY(p.slice(0,4))) cells.push({fy:p.slice(0,4)}); }
+  let h='<table class="pgrid"><colgroup><col style="width:210px">'+cells.map(()=>'<col style="width:96px">').join('')+'</colgroup>';
+  h+='<tr><th>'+ (head0||'') +'</th>'+cells.map(c=>c.fy?'<th>FY '+c.fy+'</th>':'<th>'+plabel(c.p)+'</th>').join('')+'</tr>';
+  for(const r of rows){
+    h+='<tr><td>'+r.label+'</td>'+cells.map(c=>{
+      if(c.fy){ const ms=cols.filter(p=>p.startsWith(c.fy+'-'));
+        let v=ms.reduce((s,p)=>s+num(get(r,p)),0);
+        if(o.avg||o.plain) v=v/(ms.length||1);
+        if(o.mode==='last') v=num(get(r,ms[ms.length-1]));
+        return '<td class="sub">'+show(v)+'</td>'; }
+      const p=c.p;
+      if(o.annComputed && !isMonth(p)) return '<td class="sub">'+show(num(o.annComputed(r,p)))+'</td>';
+      if(r.ro || (isMonth(p)&&closed(p))) return '<td class="'+(isMonth(p)&&closed(p)?'act':'')+'">'+show(num(get(r,p)))+'</td>';
+      return '<td>'+ inputCell(get(r,p),pathf(r,p),{kind:o.avg?'pct':(o.plain?'plain':'num'),cur}) +'</td>';
+    }).join('')+'</tr>';
+  }
+  return h+'</table>';
+}
+function outRow(label,vals,cls){
+  return '<tr class="'+(cls||'')+'"><td>'+label+'</td>'+OUTCOLS.map(p=>{
+    const v=vals(p); return '<td class="'+(p==='2025'||closed(p)?'act ':'')+(v<0?'neg':'')+'">'+(v==null?'-':fmt0(v))+'</td>';}).join('')+'</tr>';
+}
+function render(){
+  nav();
+  const m=$('main'); let h='';
+  if(!CONFIGURED) h+='<div class="banner">Preview mode: not yet connected to the shared Ignion database. Changes stay in this session. Provision the Supabase project and set SB_URL and SB_KEY to go live.</div>';
+  if(CUR==='overview'){
+    const fx=num(MODEL.params.fx)||1.10;
+    const AP={}; YRS.forEach(Y=>AP[Y]=annualPL(Y));
+    const AC=annualCF();
+    const integ=integrityCheck();
+    const y=ytd26();
+    const strip=(label,f,kind)=>{
+      let s='<div class="strip"><div class="lab">'+label+'</div>';
+      for(const Y of YRS){ const v=f(Y);
+        const txt = kind==='pct' ? (v==null?'-':(v*100).toFixed(0)+'%') : kind==='int' ? String(Math.round(v)) : kind==='usd' ? fmtM(v,'$') : fmtM(v);
+        s+='<div class="yc'+(Y==='2025'?' act':'')+'"><div class="yl">'+Y+'</div><div class="yv'+((v||0)<0?' neg':'')+'">'+txt+'</div></div>'; }
+      return s+'</div>'; };
+    const fxY=Y=>{const ms=yearMonths(Y); if(!ms)return fxAt(Y); return ms.reduce((s,p)=>s+fxAt(p),0)/12;};
+    h+=(integ.length?'<div class="card" style="border-left:4px solid #C72030;background:#FBEEEF"><b>Integrity check failed</b>: the annual summaries do not tie to the monthly detail. '+integ.slice(0,6).join('; ')+(integ.length>6?' and '+(integ.length-6)+' more':'')+'</div>':'')+'<div class="ovgrid">';
+    const kh=chartHead('Key indicators');
+    h+=kh.html;
+    const RESTR={}; { let ri=0; for(const Y of YRS){ if(Y==='2025')continue; const sv=sevBookedInYear(Y); if(sv>0.5) RESTR[Y]={n:++ri,sv}; } }
+    const KPIS=[
+      ['Revenue USD',Y=>AP[Y].trev*fxY(Y),'usd'],
+      ['Revenue EUR',Y=>AP[Y].trev,''],
+      ['Gross margin',Y=>AP[Y].gm,''],
+      ['Gross margin %',Y=>AP[Y].trev? AP[Y].gm/AP[Y].trev : null,'pct'],
+      ['Total OPEX',Y=>AP[Y].topex,'','restr'],
+      ['EBITDA',Y=>AP[Y].ebitda,''],
+      ['EBITDA %',Y=>AP[Y].trev? AP[Y].ebitda/AP[Y].trev : null,'pct'],
+      ['Cash, year end',Y=>num(AC[Y].close),''],
+      ['Headcount, year end',Y=>{const f=fteAt(Y);return DEPTS.reduce((s,d)=>s+f[d],0);},'int']
+    ];
+    h+='<table class="kpitab"><colgroup><col style="width:190px">'+YRS.map(()=>'<col>').join('')+'</colgroup>';
+    h+='<tr><th></th>'+YRS.map(Y=>'<th>'+Y+'</th>').join('')+'</tr>';
+    for(const [label,f,kind,flag] of KPIS){
+      h+='<tr><td class="klab">'+label+'</td>'+YRS.map(Y=>{
+        const v=f(Y);
+        const txt = kind==='pct' ? (v==null?'-':(v*100).toFixed(0)+'%') : kind==='int' ? String(Math.round(v)) : kind==='usd' ? fmtM(v,'$') : fmtM(v);
+        let extra='';
+        if(flag==='restr'&&RESTR[Y]) extra='<sup class="restrmark">'+RESTR[Y].n+')</sup>';
+        return '<td class="'+(Y==='2025'?'act ':'')+((v||0)<0?'neg':'')+'">'+txt+extra+'</td>';
+      }).join('')+'</tr>';
+    }
+    h+='</table>';
+    { const fns=Object.keys(RESTR).map(Y=>RESTR[Y].n+') '+Y+': includes one off \u20AC'+Math.round(RESTR[Y].sv/1000)+' K restructuring');
+      if(fns.length) h+='<div class="restrnote" style="display:inline-block;margin-top:6px">'+fns.join(' \u00b7 ')+'</div>'; }
+    h+='</div>';
+    h+='<div class="note">YTD 2026 runs at '+fmtM(y.trev)+' revenue on '+y.na+' actual months plus '+(12-y.na)+' of forecast. All figures in millions with one decimal; 2025 tinted as actuals.</div>';
+    /* charts, stacked full width, years aligned to the same six columns */
+    const revEUR=LINES.map(l=>YRS.map(Y=>num(AP[Y].rev[l])));
+    const revUSD=LINES.map(l=>YRS.map(Y=>num(AP[Y].rev[l])*fxY(Y)));
+    h+=stackChart('Revenue by line (USD)',YRS,revUSD,LINES.map(l=>SNAME[l]),v=>fmtM(v,'$'));
+    h+=stackChart('Revenue by line (EUR)',YRS,revEUR,LINES.map(l=>SNAME[l]),v=>fmtM(v));
+    h+=barChart('EBITDA (EUR)',YRS,YRS.map(Y=>AP[Y].ebitda),v=>fmtM(v));
+    h+=barChart('Cash at year end (EUR)',YRS,YRS.map(Y=>num(AC[Y].close)),v=>fmtM(v));
+    h+=barChart('Headcount (FTE, year end)',YRS,YRS.map(Y=>{const f=fteAt(Y);return DEPTS.reduce((s,d)=>s+f[d],0);}),v=>String(Math.round(v)));
+    /* aligned year tables */
+    const YG='<colgroup><col style="width:190px">'+YRS.map(()=>'<col>').join('')+'</colgroup>';
+    const ycols='<tr><th>Line</th>'+YRS.map(Y=>'<th>'+Y+'</th>').join('')+'</tr>';
+    const cls=Y=>Y==='2025'?'act ':'';
+    h+=chartHead('Input &middot; Revenue ($)').html+'<table class="ytab">'+YG+ycols;
+    for(const l of LINES) h+='<tr><td>'+LNAME[l]+'</td>'+YRS.map(Y=>'<td class="'+cls(Y)+'">'+fmtM(num(AP[Y].rev[l])*fxY(Y),'$')+'</td>').join('')+'</tr>';
+    h+='<tr class="tot"><td>Total</td>'+YRS.map(Y=>'<td class="'+cls(Y)+'">'+fmtM(AP[Y].trev*fxY(Y),'$')+'</td>').join('')+'</tr></table></div>';
+    h+=chartHead('Input &middot; GM % revenue').html+'<table class="ytab">'+YG+ycols;
+    for(const l of LINES) h+='<tr><td>'+LNAME[l]+'</td>'+YRS.map(Y=>{
+      if(Y==='2025')return '<td class="act">-</td>';
+      const g=(MODEL.gmPct[l]||{}); let v;
+      if(yearMonths(Y)){ const ms=yearMonths(Y); v=ms.reduce((s,p)=>s+num(g[p]),0)/12; } else v=num(g[Y]);
+      return '<td>'+(v*100).toFixed(0)+'%</td>';}).join('')+'</tr>';
+    h+='</table></div>';
+    h+=chartHead('Input &middot; FTE by department (year end)').html+'<table class="ytab">'+YG+ycols.replace('Line','Department');
+    for(const d of DEPTS){ h+='<tr><td>'+d+'</td>'+YRS.map(Y=>'<td class="'+cls(Y)+'">'+fteAt(Y)[d]+'</td>').join('')+'</tr>'; }
+    h+='<tr class="tot"><td>Total</td>'+YRS.map(Y=>{const f=fteAt(Y);return '<td class="'+cls(Y)+'">'+DEPTS.reduce((s,d)=>s+f[d],0)+'</td>';}).join('')+'</tr>';
+    h+='</table><div class="note">From the employee register: joiners by start date, leavers by dismissal. 2028 to 2030 hold the 2027 register; long-range hiring is entered in Compensation.</div></div>';
+    /* OUTPUT P&L */
+    const r=(label,f,c)=>'<tr class="'+(c||'')+'"><td>'+label+'</td>'+YRS.map(Y=>{const v=f(AP[Y],Y);return '<td class="'+cls(Y)+((v||0)<0?'neg':'')+'">'+(v==null?'-':fmtM(v))+'</td>';}).join('')+'</tr>';
+    h+=chartHead('Output &middot; P&amp;L (EUR)').html+'<table class="ytab">'+YG+ycols;
+    for(const l of LINES) h+=r(LNAME[l],x=>num(x.rev[l]));
+    h+=r('Revenue',x=>x.trev,'hdr');
+    h+=r('COGS',x=>x.tcogs);
+    h+=r('Gross margin',x=>x.gm,'hdr');
+    h+='<tr><td>GM%</td>'+YRS.map(Y=>'<td class="'+cls(Y)+'">'+(AP[Y].trev? (AP[Y].gm/AP[Y].trev*100).toFixed(0)+'%':'-')+'</td>').join('')+'</tr>';
+    for(const d of DEPTS){
+      h+=r(d,x=>num(x.opex[d]),'mid');
+      h+=r('comp',x=>x.comp&&x.comp[d]!=null?x.comp[d]:null,'det');
+      h+=r('non-comp',x=>x.otherOpex&&x.otherOpex[d]!=null?x.otherOpex[d]:null,'det');
+    }
+    h+=r('Total OPEX, comp',x=>x.comp?DEPTS.reduce((s,d)=>s+num(x.comp[d]),0):null,'mid');
+    h+=r('Total OPEX, non-comp',x=>x.otherOpex?DEPTS.reduce((s,d)=>s+num(x.otherOpex[d]),0):null,'mid');
+    h+=r('Total OPEX',x=>x.topex,'hdr');
+    h+=r('EBITDA',x=>x.ebitda,'tot');
+    h+='<tr><td>EBITDA%</td>'+YRS.map(Y=>'<td class="'+cls(Y)+'">'+(AP[Y].trev? (AP[Y].ebitda/AP[Y].trev*100).toFixed(0)+'%':'-')+'</td>').join('')+'</tr>';
+    h+='</table><div class="note">2025 shows department OPEX totals only; the comp and non-comp split starts in 2026 where compensation is modelled employee by employee.</div></div>';
+    /* OUTPUT cashflow */
+    const rc=(label,f,c)=>'<tr class="'+(c||'')+'"><td>'+label+'</td>'+YRS.map(Y=>{if(Y==='2025')return '<td class="act">-</td>';const v=f(AC[Y]);return '<td class="'+((v||0)<0?'neg':'')+'">'+(v==null?'-':fmtM(v))+'</td>';}).join('')+'</tr>';
+    h+=chartHead('Output &middot; Cashflow (EUR)').html+'<table class="ytab">'+YG+ycols;
+    h+=rc('EBITDA',x=>x.ebitda);
+    h+=rc('Revenue prior year in',x=>x.revIn);
+    h+=rc('Revenue current year out',x=>x.revOut);
+    h+=rc('Other working capital adj.',x=>x.otherWC,'hlwc');
+    h+=rc('Cashflow operations',x=>x.cfo,'sub');
+    h+=rc('Capital',x=>x.capIn);
+    h+=rc('New debt',x=>x.dIn);
+    h+=rc('Grants / others',x=>x.gIn+x.gRep+x.oFin);
+    h+=rc('Current debt repayment',x=>x.dRep);
+    h+=rc('Cashflow finance',x=>x.cff,'sub');
+    h+=rc('CAPEX',x=>x.capex);
+    h+=rc('Cashflow investments',x=>x.capex,'sub');
+    h+=rc('Net cashflow',x=>x.ncf,'tot');
+    if(Object.values(AC).some(x=>Math.abs((x&&x.recon)||0)>0.005)) h+=rc('Actuals reconciliation',x=>x.recon||null);
+    h+='<tr><td>Cash year beginning</td>'+YRS.map(Y=>'<td class="'+cls(Y)+'">'+(Y==='2025'?'-':fmtM(AC[Y].open))+'</td>').join('')+'</tr>';
+    h+='<tr class="tot"><td>Cash year end</td>'+YRS.map(Y=>'<td class="'+cls(Y)+'">'+fmtM(AC[Y].close)+'</td>').join('')+'</tr>';
+    h+='</table><div class="note">Revenue in and out follow the DSO cycle across the year boundary; cost payment timing and interest paid sit in other working capital. Closed months anchor to actual cash; the actuals reconciliation is the booked-versus-modelled difference of the closed months, so beginning + flows + reconciliation = end.</div></div>';
+    h+='</div>'; /* end two-column grid */
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start"><div>';
+    /* monthly cash curve with per-month labels */
+    const cfm=cashflow(); const pts=MONTHS.map(p=>cfm[p].close);
+    const SAFE=1000000, STEP=500000;
+    const rawMax=Math.max(...pts,SAFE), rawMin=Math.min(...pts,0);
+    const top=Math.ceil(rawMax/STEP)*STEP, bot=Math.floor(rawMin/STEP)*STEP;
+    const W=1240,H=470,L=92,R=16,T=36,B=104;
+    const X=i=>L+i*(W-L-R)/(pts.length-1);
+    const Yc=v=>T+(top-v)*(H-T-B)/((top-bot)||1);
+    const lbl=v=>{const s='\u20AC'+(Math.abs(v)/1e6).toFixed(1)+'M';return v<0?'-'+s:s;};
+    const cch=chartHead('Cash, closing (monthly 2026 to 2027)');
+    h+=cch.html+'<svg viewBox="0 0 '+W+' '+H+'" style="width:100%" font-family="Arial">';
+    for(let g=bot; g<=top; g+=STEP){
+      const zero=g===0;
+      h+='<line x1="'+L+'" y1="'+Yc(g)+'" x2="'+(W-R)+'" y2="'+Yc(g)+'" stroke="'+(zero?'#8A8078':'#E7DFD9')+'" stroke-width="'+(zero?1.4:1)+'"/>';
+      h+='<text x="'+(L-8)+'" y="'+(Yc(g)+6)+'" font-size="17" fill="#8A8078" text-anchor="end">'+(g/1e6).toFixed(1)+'M</text>';
+    }
+    h+='<line x1="'+L+'" y1="'+Yc(SAFE)+'" x2="'+(W-R)+'" y2="'+Yc(SAFE)+'" stroke="#660708" stroke-width="1.8" stroke-dasharray="7 5"/>';
+    h+='<text x="'+(W-R-4)+'" y="'+(Yc(SAFE)-8)+'" font-size="18" fill="#660708" text-anchor="end" font-weight="bold">Safety net \u20AC1.0M</text>';
+    h+='<polygon fill="rgba(199,32,48,0.08)" points="'+X(0)+','+Yc(0)+' '+pts.map((v,i)=>X(i)+','+Yc(v)).join(' ')+' '+X(pts.length-1)+','+Yc(0)+'"/>';
+    h+='<polyline fill="none" stroke="#C72030" stroke-width="2.5" points="'+pts.map((v,i)=>X(i)+','+Yc(v)).join(' ')+'"/>';
+    pts.forEach((v,i)=>{ h+='<circle cx="'+X(i)+'" cy="'+Yc(v)+'" r="2.6" fill="'+(closed(MONTHS[i])?'#660708':'#C72030')+'"/>';
+      const up=(i%2===0)?-12:-34;
+      h+='<text x="'+X(i)+'" y="'+(Yc(v)+up)+'" font-size="17" fill="'+((v<SAFE)?'#660708':'#282828')+'" text-anchor="middle" font-weight="bold">'+lbl(v)+'</text>'; });
+    /* callouts: severance costs and cash-increasing financing events */
+    const money=v=>Math.abs(v)>=1e6?fmtM(v):fmt0(v);
+    const events=[];
+    MONTHS.forEach((p,i)=>{ const ev=[];
+      let sev=0; for(const e of MODEL.employees){ if(e.dismiss==='Yes'&&e.dismissDate===p) sev+=sevTotal(e); }
+      if(sev>0.005) ev.push(['Severance cost',sev,'#660708']);
+      const c=cfm[p];
+      if(c.capIn>0.005) ev.push(['Capital in',c.capIn,'#282828']);
+      if(c.debtIn>0.005) ev.push(['Debt drawn',c.debtIn,'#282828']);
+      if(c.grantIn>0.005) ev.push(['Grant in',c.grantIn,'#282828']);
+      if(ev.length) events.push({i,ev});
+    });
+    events.forEach((E,k)=>{
+      const lines=E.ev.map(e=>e[0]+': '+money(e[1]));
+      const wpx=Math.max(...lines.map(s=>s.length))*9.2+16, hpx=E.ev.length*19+10;
+      const x=Math.min(Math.max(X(E.i),L+wpx/2+2),W-R-wpx/2-2);
+      const y0=T+2+(k%2)*(hpx+8);
+      const hasSev=E.ev.some(e=>e[0]==='Severance cost');
+      h+='<line x1="'+X(E.i)+'" y1="'+(y0+hpx)+'" x2="'+X(E.i)+'" y2="'+(Yc(pts[E.i])-6)+'" stroke="'+(hasSev?'#660708':'#C9BEB6')+'" stroke-width="1.2" stroke-dasharray="3 3"/>';
+      h+='<rect x="'+(x-wpx/2)+'" y="'+y0+'" width="'+wpx+'" height="'+hpx+'" rx="4" fill="#FFFFFF" stroke="'+(hasSev?'#660708':'#C9BEB6')+'" stroke-width="1.2"/>';
+      E.ev.forEach((e,j)=>{ h+='<text x="'+x+'" y="'+(y0+18+j*19)+'" font-size="15.5" font-weight="bold" fill="'+e[2]+'" text-anchor="middle">'+lines[j]+'</text>'; });
+    });
+    MONTHS.forEach((p,i)=>{ h+='<text x="'+X(i)+'" y="'+(H-58)+'" font-size="18" fill="#8A8078" text-anchor="end" transform="rotate(-45 '+X(i)+' '+(H-58)+')">'+plabel(p)+'</text>'; });
+    h+='<circle cx="'+(L+10)+'" cy="'+(H-15)+'" r="5" fill="#660708"/><text x="'+(L+21)+'" y="'+(H-9)+'" font-size="17" fill="#282828">actual</text>';
+    h+='<circle cx="'+(L+128)+'" cy="'+(H-15)+'" r="5" fill="#C72030"/><text x="'+(L+139)+'" y="'+(H-9)+'" font-size="17" fill="#282828">forecast</text>';
+    h+='</svg></div>';
+    /* severance overview panel in the second column */
+    const annSave=e=>{ const ss2=MODEL.params.ssRates[e.country] ?? 0.25;
+      const yb=String(e.dismissDate||'2026').slice(0,4);
+      return (num(e.grossMonthly)*(1+ss2)+(num(e.bonusAnnual)*bpPct(yb)+num(e.variableAnnual))/12)*12; };
+    const dis=MODEL.employees.filter(e=>e.dismiss==='Yes').sort((a,b)=>String(a.dismissDate).localeCompare(String(b.dismissDate)));
+    const base=MODEL.employees.filter(e=>!e.start||e.start.slice(0,7)<=MODEL.params.closedThrough);
+    const hcX=base.length, hcY=hcX - base.filter(e=>e.dismiss==='Yes').length;
+    const sv=chartHead('Severance overview');
+    h+=sv.html;
+    if(!dis.length){
+      h+='<div class="note">No severances planned. Headcount stays at '+hcX+'.</div>';
+    } else {
+      let tc=0,ts=0,lastm='';
+      h+='<table style="width:100%"><tr><th>Month</th><th>Employee</th><th>Exit cost</th><th>Annual saving</th></tr>';
+      for(const e of dis){ const x=sevTotal(e), s=annSave(e); tc+=x; ts+=s;
+        const ml = e.dismissDate!==lastm ? plabel(String(e.dismissDate)) : ''; lastm=e.dismissDate;
+        h+='<tr'+(ml?' class="mid"':'')+'><td>'+ml+'</td><td style="text-align:left">'+e.name+'</td><td>'+fmt0(x)+'</td><td>'+fmt0(s)+'</td></tr>';
+      }
+      h+='<tr class="tot"><td></td><td style="text-align:left">Total ('+dis.length+')</td><td>'+fmt0(tc)+'</td><td>'+fmt0(ts)+'</td></tr>';
+      h+='</table>';
+      h+='<div style="margin-top:10px;font-weight:bold;color:var(--dark)">Headcount moves from '+hcX+' to '+hcY+'</div>';
+      h+='<div class="note">Payback '+(ts>0?(tc/ts*12).toFixed(1):'-')+' months. Counts severances only; new joiners are not included.</div>';
+    }
+    h+='</div>';
+    h+='</div></div>'; /* close columns */
+    /* scenario comparison, shown when scenarios exist */
+    if(Object.keys(SCNS).length){
+      const list=[['Budget',BUDGET],...Object.keys(SCNS).sort().map(n=>[n,SCNS[n]])];
+      const rowsC=list.map(([n,mod])=>withModel(mod,()=>{
+        const ap26=annualPL('2026'), ap27=annualPL('2027'); const cfm2=cashflow();
+        const ptsS=MONTHS.map(p=>cfm2[p].close);
+        let breach=null; for(let i2=0;i2<MONTHS.length;i2++){ if(ptsS[i2]<1000000){breach=MONTHS[i2];break;} }
+        return {n,rev26:ap26.trev,eb26:ap26.ebitda,eb27:ap27.ebitda,ye26:cfm2['2026-12'].close,ye27:cfm2['2027-12'].close,breach,pts:ptsS};
+      }));
+      const sc=chartHead('Scenario comparison');
+      h+=sc.html;
+      h+='<table class="ytab"><colgroup><col style="width:190px"><col><col><col><col><col><col></colgroup>';
+      h+='<tr><th>Scenario</th><th>Revenue 2026</th><th>EBITDA 2026</th><th>EBITDA 2027</th><th>Cash YE 2026</th><th>Cash YE 2027</th><th>Safety net breach</th></tr>';
+      for(const r2 of rowsC){
+        h+='<tr'+(r2.n===SCN?' class="mid"':'')+'><td style="text-align:left">'+r2.n+(r2.n===SCN?' (active)':'')+'</td>'
+          +'<td>'+fmtM(r2.rev26)+'</td><td class="'+(r2.eb26<0?'neg':'')+'">'+fmtM(r2.eb26)+'</td><td class="'+(r2.eb27<0?'neg':'')+'">'+fmtM(r2.eb27)+'</td>'
+          +'<td class="'+(r2.ye26<0?'neg':'')+'">'+fmtM(r2.ye26)+'</td><td class="'+(r2.ye27<0?'neg':'')+'">'+fmtM(r2.ye27)+'</td>'
+          +'<td>'+(r2.breach?plabel(r2.breach):'none')+'</td></tr>';
+      }
+      h+='</table>';
+      /* multi-line cash curve */
+      const SCOL=['#C72030','#660708','#282828','#FB3344','#8A8078'];
+      const allv=rowsC.flatMap(r2=>r2.pts).concat([1000000,0]);
+      const top2=Math.ceil(Math.max(...allv)/500000)*500000, bot2=Math.floor(Math.min(...allv)/500000)*500000;
+      const W2=1240,H2=380,L2=92,R2=16,T2=24,B2=88;
+      const X2=i2=>L2+i2*(W2-L2-R2)/(MONTHS.length-1);
+      const Y2=v=>T2+(top2-v)*(H2-T2-B2)/((top2-bot2)||1);
+      h+='<svg viewBox="0 0 '+W2+' '+H2+'" style="width:100%;margin-top:10px" font-family="Arial">';
+      for(let g2=bot2;g2<=top2;g2+=500000){
+        h+='<line x1="'+L2+'" y1="'+Y2(g2)+'" x2="'+(W2-R2)+'" y2="'+Y2(g2)+'" stroke="'+(g2===0?'#8A8078':'#E7DFD9')+'"/>';
+        h+='<text x="'+(L2-8)+'" y="'+(Y2(g2)+5)+'" font-size="15" fill="#8A8078" text-anchor="end">'+(g2/1e6).toFixed(1)+'M</text>'; }
+      h+='<line x1="'+L2+'" y1="'+Y2(1000000)+'" x2="'+(W2-R2)+'" y2="'+Y2(1000000)+'" stroke="#660708" stroke-width="1.6" stroke-dasharray="7 5"/>';
+      MONTHS.forEach((p,i2)=>{ if(i2%2)return;
+        h+='<text x="'+X2(i2)+'" y="'+(H2-46)+'" font-size="15" fill="#8A8078" text-anchor="end" transform="rotate(-45 '+X2(i2)+' '+(H2-46)+')">'+plabel(p)+'</text>'; });
+      rowsC.forEach((r2,k2)=>{ const col=SCOL[k2%SCOL.length];
+        h+='<polyline fill="none" stroke="'+col+'" stroke-width="'+(r2.n===SCN?3:2)+'" '+(r2.n==='Budget'?'':'stroke-dasharray="6 4"')+' points="'+r2.pts.map((v,i2)=>X2(i2)+','+Y2(v)).join(' ')+'"/>';
+        const lx2=L2+k2*210;
+        h+='<rect x="'+lx2+'" y="'+(H2-20)+'" width="16" height="5" fill="'+col+'"/><text x="'+(lx2+22)+'" y="'+(H2-13)+'" font-size="15" fill="#282828">'+r2.n+'</text>'; });
+      h+='</svg><div class="note">Budget solid, scenarios dashed; the active scenario draws thicker. Dashed dark red line is the \u20AC1.0M safety net. Actuals are shared by construction, so curves diverge only from the first open month.</div></div>';
+    }
+  }
+  if(CUR==='pnl'){
+    h+='<div class="card"><h2>P&amp;L (EUR, no decimals) &middot; by sales segment and department</h2><table class="pgrid"><colgroup><col style="width:210px">'+OUTCOLS.map(()=>'<col style="width:104px">').join('')+'</colgroup>';
+    h+='<tr><th>Line</th>'+OUTCOLS.map(p=>'<th>'+plabel(p)+'</th>').join('')+'</tr>';
+    for(const l of LINES) h+=outRow(LNAME[l],p=>num(pl(p).rev[l]));
+    h+=outRow('Total revenue',p=>pl(p).trev,'hdr');
+    h+=outRow('COGS',p=>pl(p).tcogs);
+    h+=outRow('Gross margin',p=>pl(p).gm,'hdr');
+    for(const d of DEPTS){
+      h+=outRow(d,p=>num(pl(p).opex[d]),'mid');
+      h+=outRow('comp',p=>{const x=pl(p);return x.comp? num(x.comp[d]) : null;},'det');
+      h+=outRow('non-comp',p=>{const x=pl(p);return x.otherOpex? num(x.otherOpex[d]) : null;},'det');
+    }
+    h+=outRow('Total OPEX, comp',p=>{const x=pl(p);return x.comp? DEPTS.reduce((s,d)=>s+num(x.comp[d]),0) : null;},'mid');
+    h+=outRow('Total OPEX, non-comp',p=>{const x=pl(p);return x.otherOpex? DEPTS.reduce((s,d)=>s+num(x.otherOpex[d]),0) : null;},'mid');
+    { const RESTRP={}; { let ri=0; for(const Y of ['2026','2027',...YEARS]){ const sv=sevBookedInYear(Y); if(sv>0.5) RESTRP[Y]={n:++ri,sv}; } }
+      h+='<tr class="hdr"><td>Total OPEX</td>'+OUTCOLS.map(p=>{
+        const v=pl(p).topex;
+        const Y=isMonth(p)?p.slice(0,4):p;
+        const hit=RESTRP[Y]&&(isMonth(p)?sevBookedInMonth(p)>0.5:true);
+        const mark=hit?'<sup class="restrmark">'+RESTRP[Y].n+')</sup>':'';
+        return '<td class="'+(p==='2025'||closed(p)?'act ':'')+(v<0?'neg':'')+'">'+(v==null?'-':fmt0(v))+mark+'</td>';}).join('')+'</tr>';
+      MODEL.__restrp=RESTRP; }
+    h+=outRow('EBITDA',p=>pl(p).ebitda,'tot');
+    h+=outRow('Depreciation',p=>pl(p).dep);
+    h+=outRow('Works for own assets',p=>pl(p).wfoa);
+    h+=outRow('Interest',p=>pl(p).interest);
+    h+=outRow('Other non-EBITDA',p=>pl(p).otherBTL);
+    h+=outRow('Taxes',p=>pl(p).tax);
+    h+=outRow('Net result',p=>pl(p).net,'tot');
+    h+='</table>';
+    { const R=MODEL.__restrp||{}; const notes=Object.keys(R).map(Y=>R[Y].n+') '+Y+': includes one off \u20AC'+Math.round(R[Y].sv/1000)+' K restructuring inside Total OPEX');
+      if(notes.length) h+='<div class="restrnote" style="display:inline-block;margin-top:8px">'+notes.join(' \u00b7 ')+'</div>'; }
+    h+='</div>';
+  }
+  if(CUR==='cf'){
+    const cf=cashflow();
+    const cols=[...MONTHS,...YEARS];
+    h+='<div class="card"><h2>Cashflow (EUR)</h2><table class="pgrid"><colgroup><col style="width:210px">'+cols.map(()=>'<col style="width:104px">').join('')+'</colgroup>';
+    h+='<tr><th>Line</th>'+cols.map(p=>'<th>'+plabel(p)+'</th>').join('')+'</tr>';
+    const row=(l,f,c)=>{ let s='<tr class="'+(c||'')+'"><td>'+l+'</td>'; for(const p of cols){const v=f(cf[p]);s+='<td class="'+(closed(p)?'act ':'')+((v||0)<0?'neg':'')+'">'+(v==null?'-':fmt0(v))+'</td>';} return s+'</tr>'; };
+    h+=row('Collections (DSO)',x=>x.coll);
+    h+=row('Costs paid (DPO)',x=>x.paid);
+    h+=row('Other working capital adjustments',x=>x.wc,'hlwc');
+    h+=row('Interest paid',x=>x.debtInt);
+    h+=row('Operating result (booked, closed months)',x=>x.opBooked==null?null:x.opBooked);
+    h+=row('Cash flow from operations',x=>x.cfo,'sub');
+    h+=row('Capex',x=>x.capex);
+    h+=row('Cash flow from investments',x=>x.cfi,'sub');
+    h+=row('Capital in',x=>x.capIn);
+    h+=row('Debt in',x=>x.debtIn);
+    h+=row('Debt repaid',x=>x.debtRep);
+    h+=row('Grant in',x=>x.grantIn);
+    h+=row('Grant repaid',x=>x.grantRep);
+    h+=row('Other financing',x=>x.otherFin);
+    h+=row('Cash flow from financing',x=>x.cff,'sub');
+    h+=row('Net cash flow',x=>x.ncf,'tot');
+    if(PERIODS.some(p=>Math.abs(cf[p].recon||0)>0.005)) h+=row('Actuals reconciliation',x=>x.recon||null);
+    h+=row('Cash, closing',x=>x.close,'tot');
+    h+='</table><div class="note">All figures EUR, no decimals. Revenue collects at the DSO of its month; costs pay at the DPO of their month. Closed months anchor to actual closing cash; the actuals reconciliation row is the difference between the booked close and the modelled flows of a closed month, so every column adds up: opening + operations + investments + financing + reconciliation = closing. Grant revenue is collected through the grant schedule, not the DSO cycle, to avoid double counting.</div></div>';
+  }
+  if(CUR==='params'){
+    const P=MODEL.params;
+    h+='<div class="card"><h2>Budget-wide parameters</h2><table>';
+    h+='<tr><td>Corporate income tax rate</td><td>'+inputCell(P.taxRate,'params|taxRate',{kind:'pct'})+'</td></tr>';
+    h+='<tr><td>Actuals closed through (YYYY-MM)</td><td>'+inputCell(P.closedThrough,'params|closedThrough',{kind:'txt'})+'</td></tr>';
+    h+='<tr><td>Opening cash 1 Jan 2026 (EUR)</td><td>'+inputCell(P.openingCash,'params|openingCash')+'</td></tr>';
+    h+='</table></div>';
+    h+='<div class="card"><h2>FX (USD per EUR), monthly and long range</h2>'
+      +grid([{label:'FX USD per EUR'}],PERIODS,(r,p)=>(P.fxM||{})[p],(r,p)=>'params|fxM|'+p,'Rate',{plain:true})
+      +'<div class="note">Revenue entered in USD converts to EUR at the FX of its period. FY columns show the year average.</div></div>';
+    h+='<div class="card"><h2>DSO (days), monthly</h2>'
+      +grid([{label:'DSO days'}],MONTHS,(r,p)=>(P.dsoM||{})[p],(r,p)=>'params|dsoM|'+p,'Days',{plain:true})+'</div>';
+    h+='<div class="card"><h2>DPO (days), monthly</h2>'
+      +grid([{label:'DPO days'}],MONTHS,(r,p)=>(P.dpoM||{})[p],(r,p)=>'params|dpoM|'+p,'Days',{plain:true})
+      +'<div class="note">Revenue of a month collects DSO days later; costs of a month are paid DPO days later, both prorated across months. DPO starts at 30, which pays each month in the following month.</div></div>';
+    const dtype=P.dismissalType||'objective';
+    h+='<div class="card"><h2>Severance rules</h2><table>';
+    h+='<tr><td>Spanish dismissal type</td><td><select class="cell" '+(canWrite()?'':'disabled ')+' data-path="params|dismissalType" data-kind="txt" style="min-width:330px">'
+      +'<option value="objective" '+(dtype==='objective'?'selected':'')+'>Objective dismissal: 20 days per year, cap 12 monthly payments</option>'
+      +'<option value="unfair" '+(dtype==='unfair'?'selected':'')+'>Unfair dismissal: 33 days per year, cap 24 monthly payments</option>'
+      +'</select></td><td></td></tr>';
+    h+='<tr><th>Country</th><th>Days per year of service</th><th>Cap (monthly payments, 0 = none)</th></tr>';
+    for(const c of Object.keys(P.ssRates)){
+      if(c==='Spain'){
+        const sr=sevRuleFor({country:'Spain'});
+        h+='<tr><td>Spain</td><td>'+sr.days+' (from dismissal type)</td><td>'+sr.capMonths+'</td></tr>';
+      } else {
+        const d=sevRuleFor({country:c});
+        h+='<tr><td>'+c+'</td><td>'+inputCell(((P.sevRules||{})[c]||{}).days!=null?P.sevRules[c].days:d.days,'params|sevRules|'+c+'|days',{kind:'plain'})+'</td>'
+          +'<td>'+inputCell(((P.sevRules||{})[c]||{}).capMonths!=null?P.sevRules[c].capMonths:d.capMonths,'params|sevRules|'+c+'|capMonths',{kind:'plain'})+'</td></tr>';
+      }
+    }
+    h+='</table><div class="note">Redundancy per employee = (gross x 12 + bonus + variable) / 365 x days per year x years of service, tenure prorated by month with started months counting, capped at the stated monthly payments. Spain follows the toggle. Other countries are configurable approximations, defaults: China 30 days cap 12, United States 0, Ireland 14 days no cap, Hungary 30 days cap 6; adjust to the applicable regime, this is not legal advice.</div></div>';
+    const stepTable=(title,store,note)=>{
+      let s='<div class="card"><h2>'+title+'</h2><table><tr><th>Department</th><th>2028</th><th>2029</th><th>2030</th></tr>';
+      for(const d of DEPTS){
+        s+='<tr><td>'+d+'</td>'+['2028','2029','2030'].map(y=>'<td>'+inputCell(((P[store]||{})[d]||{})[y],'params|'+store+'|'+d+'|'+y,{kind:'pct'})+'</td>').join('')+'</tr>';
+      }
+      return s+'</table><div class="note">'+note+'</div></div>'; };
+    h+=stepTable('Long-range non-comp OPEX step-up (% per year)','opexStep','Each year multiplies the previous: 2029 = 2027 base x (1 + 2028%) x (1 + 2029%). Seeded at the increases implied by the reconciled budget, so the budget ties until you change them.');
+    h+=stepTable('Long-range salary step-up (% per year)','salStep','Applies to the fully loaded compensation of the department\'s employees in 2028 to 2030, compounding. Seeded at zero: the register runs flat until you set an indexation. Severance amounts are not indexed.');
+    let bt='<div class="card"><h2>Bonus payment</h2><table><tr><th>Accrual year</th><th>Paid in month (of the following year)</th><th>Payout %</th></tr>';
+    for(const Y of ['2026','2027','2028','2029','2030']){
+      bt+='<tr><td>'+Y+'</td><td>'+inputCell((P.bonusPayMonth||{})[Y],'params|bonusPayMonth|'+Y,{kind:'plain'})+'</td><td>'+inputCell((P.bonusPayoutPct||{})[Y],'params|bonusPayoutPct|'+Y,{kind:'pct'})+'</td></tr>';
+    }
+    bt+='</table><div class="note">The payout % scales the bonus accrued in compensation (severance bases keep the full register bonus). Cash pays no bonus monthly: the year\'s accrued bonus leaves in the chosen month of the following year. The 2030 accrual pays beyond the model horizon.</div></div>';
+    h+=bt;
+    h+='<div class="card"><h2>Social security rates by country</h2><table>';
+    for(const c of Object.keys(P.ssRates)) h+='<tr><td>'+c+'</td><td>'+inputCell(P.ssRates[c],'params|ssRates|'+c,{kind:'pct'})+'</td></tr>';
+    h+='</table><div class="note">Applied to gross salary to estimate employer cost. Indicative, not statutory-exact.</div></div>';
+  }
+  if(CUR==='revenue'){
+    h+='<div class="card"><h2>Revenue by line (USD)</h2>'
+      +grid(LINES.map(l=>({label:LNAME[l],l})),PERIODS,(r,p)=>(MODEL.revenueUSD[r.l]||{})[p],(r,p)=>'revenueUSD|'+r.l+'|'+p,'USD',{cur:'$'})+'</div>';
+    h+='<div class="card"><h2>Gross margin % by line</h2>'
+      +grid(LINES.map(l=>({label:LNAME[l],l})),PERIODS,(r,p)=>(MODEL.gmPct[r.l]||{})[p],(r,p)=>'gmPct|'+r.l+'|'+p,'GM %',{avg:true})
+      +'<div class="note">COGS = revenue x (1 - GM%). GM is entered and shown in whole percent. EUR = USD / FX.</div></div>';
+  }
+  if(CUR==='comp'){
+    const ssOf=e=>num(e.grossMonthly)*(MODEL.params.ssRates[e.country] ?? 0.25);
+    const loadedM=e=>num(e.grossMonthly)+ssOf(e)+(num(e.bonusAnnual)+num(e.variableAnnual))/12;
+    const payback=e=>{ const a=loadedM(e)*12; return a>0? sevTotal(e)/a*12 : null; };
+    h+='<div class="card"><h2>Employees ('+MODEL.employees.length+')</h2><table><tr><th style="width:26px"></th><th>Name</th><th>Dept</th><th>Country</th><th>Start</th><th>Gross monthly</th><th>Social security</th><th>Bonus annual</th><th>Variable annual</th><th>Total monthly</th><th>Dismiss?</th><th>Dismiss month</th><th>Redundancy</th><th>Notice period</th><th>Non-compete</th><th>Total exit cost</th><th>Payback (months)</th></tr>';
+    let T={r:0,n:0,c:0,x:0,save:0};
+    MODEL.employees.forEach((e,i)=>{
+      const yes=e.dismiss==='Yes';
+      if(yes){T.r+=num(e.sevRedundancy);T.n+=num(e.sevNotice);T.c+=num(e.sevNonCompete);T.x+=sevTotal(e);T.save+=loadedM(e)*12;}
+      const pb=payback(e);
+      const bin = canWrite()? '<button class="dbtn" data-i="'+i+'" title="Delete '+e.name.replace(/"/g,'&quot;')+'"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6"/></svg></button>' : '';
+      h+='<tr><td style="background:#fff">'+bin+'</td><td>'+inputCell(e.name,'employees|'+i+'|name',{kind:'txt',wide:1})+'</td>'
+        +'<td><select class="cell" '+(canWrite()?'':'disabled ')+' data-path="employees|'+i+'|dept" data-kind="txt">'+DEPTS.map(d=>'<option '+(d===e.dept?'selected':'')+'>'+d+'</option>').join('')+'</select></td>'
+        +'<td>'+inputCell(e.country,'employees|'+i+'|country',{kind:'txt'})+'</td>'
+        +'<td>'+inputCell(fmtDate(e.start),'employees|'+i+'|start',{kind:'date'})+'</td>'
+        +'<td>'+inputCell(e.grossMonthly,'employees|'+i+'|grossMonthly')+'</td>'
+        +'<td>'+fmt(ssOf(e))+'</td>'
+        +'<td>'+inputCell(e.bonusAnnual,'employees|'+i+'|bonusAnnual')+'</td>'
+        +'<td>'+inputCell(e.variableAnnual,'employees|'+i+'|variableAnnual')+'</td>'
+        +'<td><b>'+fmt(loadedM(e))+'</b></td>'
+        +'<td><select class="cell" '+(canWrite()?'':'disabled ')+' data-path="employees|'+i+'|dismiss" data-kind="txt"><option '+(e.dismiss==='No'?'selected':'')+'>No</option><option '+(yes?'selected':'')+'>Yes</option></select></td>'
+        +'<td>'+inputCell(e.dismissDate,'employees|'+i+'|dismissDate',{kind:'txt'})+'</td>'
+        +'<td>'+fmt(sevRedundancyCalc(e))+'</td>'
+        +'<td>'+inputCell(e.sevNotice,'employees|'+i+'|sevNotice')+'</td>'
+        +'<td>'+inputCell(e.sevNonCompete,'employees|'+i+'|sevNonCompete')+'</td>'
+        +'<td>'+fmt(sevTotal(e))+'</td>'
+        +'<td>'+(pb==null?'-':pb.toFixed(1))+'</td></tr>';
+    });
+    h+='<tr class="tot"><td></td><td>Total, dismissals set to Yes</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>'
+      +'<td>'+fmt(T.r)+'</td><td>'+fmt(T.n)+'</td><td>'+fmt(T.c)+'</td><td>'+fmt(T.x)+'</td><td>'+(T.save>0?(T.x/T.save*12).toFixed(1):'-')+'</td></tr>';
+    h+='</table>';
+    if(canWrite()) h+='<button class="btn sec" id="addEmp" style="margin-top:10px">Add employee</button>';
+    h+='<div class="note">Social security, total monthly and redundancy are calculated. Redundancy accrues with tenure: daily salary (gross plus bonus and variable, over 365) times the days per year of service set in Parameters, from the start date to the dismissal month inclusive, capped at the set number of monthly payments. Moving the dismissal date reprices it. Notice and non-compete stay manual. Payback = total exit cost divided by the fully loaded annual cost, times 12, in months. Dates are dd.mm.yyyy; the dismiss month is YYYY-MM. A dismissal stops the running cost from the dismissal month and books the exit cost in that month inside compensation OPEX.</div></div>';
+    /* summary by month and department */
+    const hcRows=[...DEPTS.map(d=>({label:d,d,ro:true})),{label:'Total',d:'__T__',ro:true}];
+    const hcGet=(r,p)=>{ let n=0; for(const e of MODEL.employees){ if((r.d==='__T__'||e.dept===r.d) && activeInMonth(e,p)) n++; } return n; };
+    h+='<div class="card"><h2>Headcount by department and month</h2>'
+      +grid(hcRows,MONTHS,hcGet,null,'Department',{int:true,mode:'last'})+'</div>';
+    const cRows=[...DEPTS.map(d=>({label:d,d,ro:true})),{label:'Total',d:'__T__',ro:true}];
+    const cGet=(r,p)=>{ const c=compByDept(p); return r.d==='__T__'? DEPTS.reduce((s,d)=>s+num(c[d]),0) : c[r.d]; };
+    h+='<div class="card"><h2>Compensation cost by department and month (EUR)</h2>'
+      +grid(cRows,MONTHS,cGet,null,'Department')
+      +'<div class="note">Includes social security, bonus and variable accruals, and exit costs in the dismissal month. FY columns: headcount shows December; cost shows the year total.</div></div>';
+  }
+  if(CUR==='opex'){
+    h+='<div class="card"><h2>Other OPEX (dept x cost center x period, EUR)</h2>';
+    MODEL.otherOpex.forEach((row,i)=>{
+      h+='<div style="margin:10px 0 4px;font-weight:bold;color:var(--dark)">'+row.dept+' &middot; '+inputCell(row.costCenter,'otherOpex|'+i+'|costCenter',{kind:'txt',wide:1})+'</div>';
+      h+=grid([{label:row.dept,i}],PERIODS,(r,p)=>(MODEL.otherOpex[r.i].values||{})[p],(r,p)=>'otherOpex|'+r.i+'|values|'+p,'',{annComputed:(r,p)=>rowOpexAt(MODEL.otherOpex[r.i],p)});
+    });
+    h+='<div class="note">2028 to 2030 are computed: the 2027 total of each row escalated by the department step-up chain in Parameters. Rows without a 2027 base use their stored annual value times the chain.</div>';
+    if(canWrite()) h+='<button class="btn sec" id="addOpex" style="margin-top:8px">Add cost center</button>';
+    h+='<div class="note">Seeded per department as the 2026 budget OPEX less modelled compensation; edit or replace by cost center.</div></div>';
+  }
+  if(CUR==='btl'){
+    const rows=[{label:'Depreciation',k:'dep'},{label:'Works for own assets',k:'wfoa'},{label:'Other non-EBITDA',k:'otherBTL'},{label:'Interest (manual add-on)',k:'interestManual'}];
+    h+='<div class="card"><h2>Below EBITDA (EUR)</h2>'
+      +grid(rows,PERIODS,(r,p)=>(MODEL.nonEbitda[r.k]||{})[p],(r,p)=>'nonEbitda|'+r.k+'|'+p,'Line')
+      +'<div class="note">Interest is computed from the debt schedule; the manual line adds on top. Taxes use the global rate on positive EBT.</div></div>';
+  }
+  if(CUR==='inv'){
+    h+='<div class="card"><h2>Capex by department (EUR, negative = outflow)</h2>'
+      +grid(DEPTS.map(d=>({label:d,d})),PERIODS,(r,p)=>(MODEL.capex[r.d]||{})[p],(r,p)=>'capex|'+r.d+'|'+p,'Dept')+'</div>';
+    h+='<div class="card"><h2>Other working capital (3 free lines, EUR)</h2>'
+      +grid(MODEL.wcLines.map((w,i)=>({label:w.name,i})),MONTHS,(r,p)=>(MODEL.wcLines[r.i].values||{})[p],(r,p)=>'wcLines|'+r.i+'|values|'+p,'Line')+'</div>';
+  }
+  if(CUR==='fin'){
+    h+='<div class="card"><h2>Financing (EUR)</h2>'
+      +grid([{label:'Capital in',k:'capitalIn'},{label:'Other (free)',k:'otherFin'}],PERIODS,(r,p)=>(MODEL.financing[r.k]||{})[p],(r,p)=>'financing|'+r.k+'|'+p,'Line')
+      +'<div class="note">Debt and grant flows come from their schedules.</div></div>';
+  }
+  if(CUR==='debt'){
+    h+='<div class="card"><h2>Debt instruments ('+MODEL.debt.length+')</h2>';
+    MODEL.debt.forEach((d,i)=>{
+      h+='<div style="margin:12px 0 4px;font-weight:bold;color:var(--dark)">'+inputCell(d.name,'debt|'+i+'|name',{kind:'txt',wide:1})+' &middot; '+d.type+' &middot; rate '+d.rate+' &middot; outstanding '+fmt(d.outstanding)+'</div>';
+      h+=grid([{label:'Drawdowns',k:'drawdowns',i},{label:'Repayments',k:'repayments',i},{label:'Interest',k:'interest',i}],PERIODS,
+        (r,p)=>(MODEL.debt[r.i][r.k]||{})[p],(r,p)=>'debt|'+r.i+'|'+r.k+'|'+p,'');
+    });
+    if(canWrite()) h+='<button class="btn sec" id="addDebt" style="margin-top:8px">Add instrument</button>';
+    h+='<div class="note">Repayments and interest are positive numbers; the cashflow signs them. Seeded from the budget debt tab, spread evenly across months within each year.</div></div>';
+  }
+  if(CUR==='grants'){
+    h+='<div class="card"><h2>Grant register ('+MODEL.grants.length+')</h2><table><tr><th>Grant</th><th>Line</th><th>Status</th><th>Grant date</th><th>Amount</th><th>Pending</th></tr>';
+    MODEL.grants.forEach(g=>{ h+='<tr><td>'+g.name+'</td><td>'+g.line+'</td><td>'+g.status+'</td><td>'+fmtDate(g.date)+'</td><td>'+fmt(g.amount)+'</td><td>'+fmt(g.pending)+'</td></tr>'; });
+    h+='</table></div>';
+    h+='<div class="card"><h2>Grant collections and repayments (EUR)</h2>';
+    MODEL.grants.forEach((g,i)=>{
+      h+='<div style="margin:10px 0 4px;font-weight:bold;color:var(--dark)">'+g.name+'</div>';
+      h+=grid([{label:'Collections',k:'collections',i},{label:'Repayments',k:'repayments',i}],PERIODS,
+        (r,p)=>(MODEL.grants[r.i][r.k]||{})[p],(r,p)=>'grants|'+r.i+'|'+r.k+'|'+p,'');
+    });
+    if(canWrite()) h+='<button class="btn sec" id="addGrant" style="margin-top:8px">Add grant</button>';
+    h+='</div>';
+  }
+  m.innerHTML=h; syncScnUI();
+  $('main').querySelectorAll('.cbtn').forEach(b=>{ b.onclick=()=>copyChartPNG(b.dataset.chart); });
+  $('main').querySelectorAll('.dbtn').forEach(b=>{ b.onclick=()=>{ if(!canWrite())return;
+    const i=+b.dataset.i; const e=MODEL.employees[i]; if(!e)return;
+    if(typeof window.confirm==='function' && !window.confirm('Delete '+e.name+' from the register? This removes their cost from every open month.')) return;
+    MODEL.employees.splice(i,1); dirty=true; toast('Removed '+e.name+' from the register.'); render(); }; });
+  bindInputs();
+  const ae=$('addEmp'); if(ae) ae.onclick=()=>{MODEL.employees.push({id:'e'+Math.random().toString(36).slice(2,7),name:'New employee',dept:DEPTS[0],country:'Spain',entity:'IGNION S.L.',contract:'Indefinite',start:'2026-07',grossMonthly:0,bonusAnnual:0,variableAnnual:0,dismiss:'No',dismissDate:'2026-12',sevRedundancy:0,sevNotice:0,sevNonCompete:0});dirty=true;render();};
+  const ao=$('addOpex'); if(ao) ao.onclick=()=>{MODEL.otherOpex.push({dept:DEPTS[0],costCenter:'New cost center',values:{}});dirty=true;render();};
+  const ad=$('addDebt'); if(ad) ad.onclick=()=>{MODEL.debt.push({name:'New instrument',type:'Loan',rate:'',outstanding:0,drawdowns:{},repayments:{},interest:{}});dirty=true;render();};
+  const ag=$('addGrant'); if(ag) ag.onclick=()=>{MODEL.grants.push({name:'New grant',line:'',status:'Applied',amount:0,pending:0,collections:{},repayments:{}});dirty=true;render();};
+}
+
+/* ---------- excel round trip ---------- */
+function buildParamWB(tpl){
+  const wb=XLSX.utils.book_new();
+  wb.Props={Title:tpl?'Ignion FP&A parameter template':'Ignion FP&A parameters',Author:'Xavier Sanso',Company:'Ignion'};
+  const hdr=p=> (tpl&&isMonth(p)&&closed(p)) ? p+' (closed)' : p;
+  const cols=['Line',...PERIODS.map(hdr)];
+  function sheetFromGrid(name,rows){ const ws=XLSX.utils.aoa_to_sheet([cols,...rows]); XLSX.utils.book_append_sheet(wb,ws,name); }
+  if(tpl){
+    const ct=MODEL.params.closedThrough;
+    const nx=MONTHS[MONTHS.indexOf(ct)+1]||'(none)';
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([
+      ['Ignion FP&A parameter template'],
+      ['Actuals are closed through '+ct+'. The next month to close is '+nx+'.'],
+      ['Columns marked (closed) are locked: the import ignores them, so closed months cannot be overwritten from the forecast sheets.'],
+      ['To close '+nx+': fill its column on the Actuals sheet, including Cash close, then upload. The closed-through marker advances automatically.'],
+      ['All other sheets update the forecast for open months only. Debt and grant schedules are edited in the portal.'],
+      ['Dates are dd.mm.yyyy. GM and rates are plain numbers (GM as 0 to 1 in this file).']
+    ]),'Read me');
+  }
+  sheetFromGrid('Revenue USD',LINES.map(l=>[LNAME[l],...PERIODS.map(p=>num((MODEL.revenueUSD[l]||{})[p]))]));
+  sheetFromGrid('GM pct',LINES.map(l=>[LNAME[l],...PERIODS.map(p=>num((MODEL.gmPct[l]||{})[p]))]));
+  sheetFromGrid('Other OPEX',MODEL.otherOpex.map(r=>[r.dept+' | '+r.costCenter,...PERIODS.map(p=>num((r.values||{})[p]))]));
+  sheetFromGrid('Capex',DEPTS.map(d=>[d,...PERIODS.map(p=>num((MODEL.capex[d]||{})[p]))]));
+  sheetFromGrid('Below EBITDA',[['Depreciation',...PERIODS.map(p=>num(MODEL.nonEbitda.dep[p]))],['Works for own assets',...PERIODS.map(p=>num(MODEL.nonEbitda.wfoa[p]))],['Other non-EBITDA',...PERIODS.map(p=>num(MODEL.nonEbitda.otherBTL[p]))]]);
+  const eh=['Name','Dept','Country','Entity','Start','Gross monthly','Bonus annual','Variable annual','Dismiss','Dismiss month','Redundancy','Notice period','Non-compete'];
+  const er=MODEL.employees.map(e=>[e.name,e.dept,e.country,e.entity,e.start,num(e.grossMonthly),num(e.bonusAnnual),num(e.variableAnnual),e.dismiss,e.dismissDate,Math.round(sevRedundancyCalc(e)*100)/100,num(e.sevNotice),num(e.sevNonCompete)]);
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([eh,...er]),'Employees');
+  const ALINES=[...LINES.map(l=>'Revenue '+LNAME[l]),'COGS',...DEPTS.map(d=>'OPEX '+d),...DEPTS.map(d=>'Comp '+d),...['CF EBITDA','CF Bonus 2026','CF Bonus 2025','CF Other working capital','CF Interest','CF WC adjustments','CF Capex','CF Debt repayment','CF Debt raised','CF Capital raised','CF Grants raised'],'Depreciation','Works for own assets','Interest','Other non-EBITDA','Taxes','Cash close'];
+  const arows=ALINES.map(nm=>[nm,...MONTHS.map(p=>{const a=MODEL.actuals[p]; if(!a)return null;
+    if(nm.startsWith('Revenue ')){const l=LINES.find(x=>LNAME[x]===nm.slice(8));return num(a.revenue[l]);}
+    if(nm==='COGS')return num(a.cogs); if(nm.startsWith('OPEX '))return num(a.opex[nm.slice(5)]);
+    if(nm.startsWith('Comp '))return a.comp?num(a.comp[nm.slice(5)]):null;
+    if(nm.startsWith('CF ')){ if(!a.cf)return null; const K={'CF EBITDA':'ebitda','CF Bonus 2026':'bonus26','CF Bonus 2025':'bonus25','CF Other working capital':'owc','CF Interest':'interest','CF WC adjustments':'wcadj','CF Capex':'capex','CF Debt repayment':'debtRep','CF Debt raised':'debtIn','CF Capital raised':'capIn','CF Grants raised':'grantIn'}; return num(a.cf[K[nm]]); }
+    if(nm==='Depreciation')return num(a.dep); if(nm==='Works for own assets')return num(a.wfoa);
+    if(nm==='Interest')return num(a.interest); if(nm==='Other non-EBITDA')return num(a.otherBTL);
+    if(nm==='Taxes')return num(a.taxes); if(nm==='Cash close')return num(a.cashClose); return null;})]);
+  const status=['Status',...MONTHS.map(p=> closed(p)?'closed':(MONTHS[MONTHS.indexOf(MODEL.params.closedThrough)+1]===p?'NEXT TO CLOSE':'open'))];
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Line',...MONTHS],status,...arows]),'Actuals');
+  sheetFromGrid('Rates',[['FX USD per EUR',...PERIODS.map(p=>fxAt(p))],['DSO days',...PERIODS.map(p=>isMonth(p)?dsoAt(p):null)],['DPO days',...PERIODS.map(p=>isMonth(p)?dpoAt(p):null)]]);
+  const bonusRows=[['Parameter','2026','2027','2028','2029','2030'],
+    ['Pay month (of following year)',...['2026','2027','2028','2029','2030'].map(Y=>bpMonth(Y))],
+    ['Payout %',...['2026','2027','2028','2029','2030'].map(Y=>bpPct(Y))]];
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(bonusRows),'Bonus');
+  const stepRows=[['Parameter','Department','2028','2029','2030']];
+  for(const d of DEPTS) stepRows.push(['Non-comp OPEX step %',d,...['2028','2029','2030'].map(y=>num(((MODEL.params.opexStep||{})[d]||{})[y]))]);
+  for(const d of DEPTS) stepRows.push(['Salary step %',d,...['2028','2029','2030'].map(y=>num(((MODEL.params.salStep||{})[d]||{})[y]))]);
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(stepRows),'Step-up');
+  sheetFromGrid('Working capital',MODEL.wcLines.map(w=>[w.name,...PERIODS.map(p=>num((w.values||{})[p]))]));
+  sheetFromGrid('Financing',[['Capital in',...PERIODS.map(p=>num((MODEL.financing.capitalIn||{})[p]))],['Other financing',...PERIODS.map(p=>num((MODEL.financing.otherFin||{})[p]))]]);
+  const ph=[['Parameter','Value'],['Tax rate',MODEL.params.taxRate],['Closed through',MODEL.params.closedThrough],['Opening cash 2026',MODEL.params.openingCash]];
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(ph),'Parameters');
+  return wb;
+}
+function appendOutputSheets(wb){ /* computed outputs; ignored on import by construction */
+  const fmtEUR='\u20AC#,##0';
+  const setFmt=(ws,fmt,rowFmts)=>{ if(!ws||!ws['!ref'])return;
+    for(const addr in ws){ if(addr[0]==='!')continue; const c=ws[addr];
+      if(c&&c.t==='n'){ const rr=parseInt(addr.replace(/^[A-Z]+/,''),10);
+        c.z=(rowFmts&&rowFmts[rr])||fmt; } } };
+  /* P&L */
+  const pr=[['Line',...OUTCOLS.map(plabel)]];
+  const P_=OUTCOLS.map(p=>pl(p));
+  for(const l of LINES) pr.push([LNAME[l],...P_.map(x=>num(x.rev[l]))]);
+  pr.push(['Total revenue',...P_.map(x=>x.trev)]);
+  pr.push(['COGS',...P_.map(x=>x.tcogs)]);
+  pr.push(['Gross margin',...P_.map(x=>x.gm)]);
+  for(const d of DEPTS) pr.push(['OPEX '+d,...P_.map(x=>num(x.opex[d]))]);
+  pr.push(['Total OPEX',...P_.map(x=>x.topex)]);
+  pr.push(['EBITDA',...P_.map(x=>x.ebitda)]);
+  pr.push(['Depreciation',...P_.map(x=>x.dep)]);
+  pr.push(['Works for own assets',...P_.map(x=>x.wfoa)]);
+  pr.push(['Interest',...P_.map(x=>x.interest)]);
+  pr.push(['Other non-EBITDA',...P_.map(x=>x.otherBTL)]);
+  pr.push(['EBT',...P_.map(x=>x.ebt)]);
+  pr.push(['Taxes',...P_.map(x=>x.tax)]);
+  pr.push(['Net income',...P_.map(x=>x.net)]);
+  const wsP=XLSX.utils.aoa_to_sheet(pr); setFmt(wsP,fmtEUR);
+  XLSX.utils.book_append_sheet(wb,wsP,'P&L');
+  /* Cashflow */
+  const cf=cashflow();
+  const cr=[['Line',...PERIODS.map(plabel)]];
+  const C_=PERIODS.map(p=>cf[p]);
+  const crow=(lab,f)=>cr.push([lab,...C_.map(c=>{const v=f(c);return v==null?null:v;})]);
+  crow('Cash, opening',c=>c.open);
+  crow('Collections',c=>c.coll); crow('Costs paid',c=>c.paid);
+  crow('Other working capital adjustments',c=>c.wc); crow('Interest paid',c=>c.debtInt);
+  crow('Cash flow from operations',c=>c.cfo);
+  crow('Capex',c=>c.capex); crow('Cash flow from investments',c=>c.cfi);
+  crow('Capital in',c=>c.capIn); crow('Debt drawdowns',c=>c.debtIn); crow('Debt repayments',c=>c.debtRep);
+  crow('Grants in',c=>c.grantIn); crow('Grants repaid',c=>c.grantRep); crow('Other financing',c=>c.otherFin);
+  crow('Cash flow from financing',c=>c.cff);
+  crow('Net cash flow',c=>c.ncf);
+  if(C_.some(c=>Math.abs(c.recon||0)>0.005)) crow('Actuals reconciliation',c=>c.recon||null);
+  crow('Cash, closing',c=>c.close);
+  const wsC=XLSX.utils.aoa_to_sheet(cr); setFmt(wsC,fmtEUR);
+  XLSX.utils.book_append_sheet(wb,wsC,'Cashflow');
+  /* Overview: key indicators and annual cashflow, in the overview formats (EUR millions 1dp, whole percents, integer headcount) */
+  const YRS6=['2025','2026','2027','2028','2029','2030'];
+  const AP={}; YRS6.forEach(Y=>AP[Y]=annualPL(Y));
+  const AC=annualCF();
+  const orows=[['Key indicators',...YRS6]];
+  orows.push(['Revenue (EUR)',...YRS6.map(Y=>AP[Y].trev)]);
+  orows.push(['Gross margin',...YRS6.map(Y=>AP[Y].gm)]);
+  orows.push(['Gross margin %',...YRS6.map(Y=>AP[Y].trev?AP[Y].gm/AP[Y].trev:null)]);
+  orows.push(['Total OPEX',...YRS6.map(Y=>AP[Y].topex)]);
+  orows.push(['EBITDA',...YRS6.map(Y=>AP[Y].ebitda)]);
+  orows.push(['Cash, year end',...YRS6.map(Y=>AC[Y]?AC[Y].close:null)]);
+  orows.push(['Headcount (year end)',...YRS6.map(Y=>{const f=fteAt(Y);return DEPTS.reduce((s,d)=>s+(f[d]||0),0);})]);
+  orows.push([]);
+  orows.push(['Annual cashflow',...YRS6]);
+  const arow=(lab,f)=>orows.push([lab,...YRS6.map(Y=>{const A=AC[Y];if(!A)return null;const v=f(A);return v==null?null:v;})]);
+  arow('EBITDA',A=>A.ebitda); arow('Collections of prior year revenue',A=>A.revIn); arow('Revenue collected after year end',A=>A.revOut);
+  arow('Other working capital',A=>A.otherWC); arow('Cash flow from operations',A=>A.cfo);
+  arow('Capex',A=>A.capex); arow('Capital in',A=>A.capIn); arow('Debt drawdowns',A=>A.dIn); arow('Debt repayments',A=>A.dRep);
+  arow('Cash flow from financing',A=>A.cff); arow('Net cashflow',A=>A.ncf); arow('Actuals reconciliation',A=>A.recon||null);
+  arow('Cash year beginning',A=>A.open); arow('Cash year end',A=>A.close);
+  const wsO=XLSX.utils.aoa_to_sheet(orows);
+  const fM='\u20AC#,##0.0,,"M"';
+  const rowFmts={4:'0%',8:'0'}; /* Gross margin % and Headcount rows */
+  setFmt(wsO,fM,rowFmts);
+  XLSX.utils.book_append_sheet(wb,wsO,'Overview');
+}
+function exportParams(){ const wb=buildParamWB(false); appendOutputSheets(wb); XLSX.writeFile(wb,'Ignion_FPA_Parameters.xlsx'); toast('Budget exported, inputs and outputs.'); }
+function exportTemplate(){ XLSX.writeFile(buildParamWB(true),'Ignion_FPA_Parameter_Template.xlsx'); toast('Template downloaded, actuals closed through '+MODEL.params.closedThrough+'.'); }
+async function importParams(file){
+  try{
+    const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
+    const S=n=>{const ws=wb.Sheets[n];return ws?XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null}):null;};
+    const okP=p=>PERIODS.includes(p)&&!(isMonth(p)&&closed(p)); /* forecast sheets never touch closed months */
+    const rv=S('Revenue USD');
+    if(rv){ const hdr=rv[0]; for(const row of rv.slice(1)){ const l=LINES.find(x=>LNAME[x]===row[0]); if(!l)continue;
+      hdr.forEach((p,j)=>{ if(j>0&&okP(String(p))) MODEL.revenueUSD[l][String(p)]=num(row[j]); }); } }
+    const gmS=S('GM pct');
+    if(gmS){ const hdr=gmS[0]; for(const row of gmS.slice(1)){ const l=LINES.find(x=>LNAME[x]===row[0]); if(!l)continue;
+      hdr.forEach((p,j)=>{ if(j>0&&okP(String(p))) MODEL.gmPct[l][String(p)]=num(row[j]); }); } }
+    const oo=S('Other OPEX');
+    if(oo){ const hdr=oo[0]; const old=MODEL.otherOpex; MODEL.otherOpex=[];
+      for(const row of oo.slice(1)){ if(!row[0])continue; const [dept,cc]=String(row[0]).split('|').map(s=>s.trim());
+        const prev=old.find(x=>x.dept===dept&&x.costCenter===(cc||'General'));
+        const vals={}; if(prev){ for(const p of PERIODS){ if(isMonth(p)&&closed(p)&&prev.values&&prev.values[p]!=null) vals[p]=prev.values[p]; } }
+        hdr.forEach((p,j)=>{ if(j>0&&okP(String(p))) vals[String(p)]=num(row[j]); });
+        MODEL.otherOpex.push({dept:dept,costCenter:cc||'General',values:vals}); } }
+    const rt=S('Rates');
+    if(rt){ const hdr=rt[0];
+      for(const row of rt.slice(1)){ const nm=String(row[0]||'');
+        const tgt = nm.startsWith('FX')?'fxM' : nm.startsWith('DSO')?'dsoM' : nm.startsWith('DPO')?'dpoM' : null;
+        if(!tgt) continue; MODEL.params[tgt]=MODEL.params[tgt]||{};
+        hdr.forEach((p,j)=>{ if(j>0&&okP(String(p))&&row[j]!=null) MODEL.params[tgt][String(p)]=num(row[j]); }); } }
+    const bs=S('Bonus');
+    if(bs){ const yrs=['2026','2027','2028','2029','2030'];
+      for(const row of bs.slice(1)){ const nm=String(row[0]||'');
+        const tgt=nm.startsWith('Pay month')?'bonusPayMonth':nm.startsWith('Payout')?'bonusPayoutPct':null; if(!tgt)continue;
+        MODEL.params[tgt]=MODEL.params[tgt]||{};
+        yrs.forEach((Y,k)=>{ if(row[1+k]!=null) MODEL.params[tgt][Y]=num(row[1+k]); }); } }
+    const st=S('Step-up');
+    if(st){ for(const row of st.slice(1)){ const nm=String(row[0]||''); const d=DEPTS.find(x=>x===row[1]); if(!d)continue;
+      const tgt = nm.startsWith('Non-comp')?'opexStep' : nm.startsWith('Salary')?'salStep' : null; if(!tgt)continue;
+      MODEL.params[tgt]=MODEL.params[tgt]||{}; MODEL.params[tgt][d]=MODEL.params[tgt][d]||{};
+      ['2028','2029','2030'].forEach((y,k)=>{ if(row[2+k]!=null) MODEL.params[tgt][d][y]=num(row[2+k]); }); } }
+    const cx=S('Capex');
+    if(cx){ const hdr=cx[0]; for(const row of cx.slice(1)){ const d=DEPTS.find(x=>x===row[0]); if(!d)continue;
+      hdr.forEach((p,j)=>{ if(j>0&&okP(String(p))) MODEL.capex[d][String(p)]=num(row[j]); }); } }
+    const be=S('Below EBITDA');
+    if(be){ const hdr=be[0]; const map={'Depreciation':'dep','Works for own assets':'wfoa','Other non-EBITDA':'otherBTL'};
+      for(const row of be.slice(1)){ const k=map[String(row[0])]; if(!k)continue;
+        hdr.forEach((p,j)=>{ if(j>0&&okP(String(p))) MODEL.nonEbitda[k][String(p)]=num(row[j]); }); } }
+    const wcS=S('Working capital');
+    if(wcS){ const hdr=wcS[0]; let idx=0;
+      for(const row of wcS.slice(1)){ if(row[0]==null)continue;
+        const w=MODEL.wcLines.find(x=>x.name===row[0])||MODEL.wcLines[idx]; if(!w)continue;
+        w.name=String(row[0]); w.values=w.values||{};
+        hdr.forEach((p,j)=>{ if(j>0&&okP(String(p))) w.values[String(p)]=num(row[j]); }); idx++; } }
+    const fn=S('Financing');
+    if(fn){ const hdr=fn[0]; const map={'Capital in':'capitalIn','Other financing':'otherFin'};
+      for(const row of fn.slice(1)){ const k=map[String(row[0])]; if(!k)continue;
+        MODEL.financing[k]=MODEL.financing[k]||{};
+        hdr.forEach((p,j)=>{ if(j>0&&okP(String(p))) MODEL.financing[k][String(p)]=num(row[j]); }); } }
+    const emp=S('Employees');
+    if(emp){ for(const row of emp.slice(1)){ if(!row[0])continue;
+        let e=MODEL.employees.find(x=>x.name===row[0]);
+        if(!e){ e={id:'e'+Math.random().toString(36).slice(2,7),name:String(row[0])}; MODEL.employees.push(e); }
+        e.dept=row[1]||e.dept; e.country=row[2]||e.country; e.entity=row[3]||e.entity; e.start=row[4]||e.start;
+        e.grossMonthly=num(row[5]); e.bonusAnnual=num(row[6]); e.variableAnnual=num(row[7]);
+        e.dismiss=row[8]||'No'; e.dismissDate=row[9]||e.dismissDate;
+        /* row[10] redundancy is calculated from tenure and ignored on import */ e.sevNotice=num(row[11]); e.sevNonCompete=num(row[12]); } }
+    let acts=S('Actuals');
+    if(acts&&SCN!=='Budget'){ acts=null; toast('Months are closed on the Budget and propagate to every scenario; the Actuals sheet was ignored here.',true); }
+    if(acts){ const hdr=acts[0]; const byLine={}; acts.slice(1).forEach(r=>{ if(r[0]) byLine[r[0]]=r; });
+      let newest=null;
+      hdr.forEach((p,j)=>{ if(j===0||!MONTHS.includes(String(p)))return; const k=String(p);
+        const gv=nm=>{const r=byLine[nm]; return r&&r[j]!=null? num(r[j]) : null;};
+        const cc=gv('Cash close');
+        const any=[...LINES.map(l=>'Revenue '+LNAME[l]),'Revenue Product','COGS','Cash close'].some(nm=>{const r=byLine[nm];return r&&r[j]!=null;});
+        if(!any)return;
+        const a={revenue:{},opex:{}};
+        const LEGACY={prod_lic:'Revenue Product',services:'Revenue Service',troves_unl:'Revenue OXION',edl_unl:'Revenue EDL',grants:'Revenue Grants'};
+        LINES.forEach(l=>{ let v=gv('Revenue '+LNAME[l]); if(v==null&&LEGACY[l]) v=gv(LEGACY[l]); a.revenue[l]=v||0; });
+        DEPTS.forEach(d=>a.opex[d]=gv('OPEX '+d)||0);
+        const compVals={}; let anyComp=false;
+        DEPTS.forEach(d=>{ const v=gv('Comp '+d); if(v!=null){anyComp=true;} compVals[d]=v||0; });
+        if(anyComp) a.comp=compVals;
+        const K={'CF EBITDA':'ebitda','CF Bonus 2026':'bonus26','CF Bonus 2025':'bonus25','CF Other working capital':'owc','CF Interest':'interest','CF WC adjustments':'wcadj','CF Capex':'capex','CF Debt repayment':'debtRep','CF Debt raised':'debtIn','CF Capital raised':'capIn','CF Grants raised':'grantIn'};
+        const cfVals={}; let anyCF=false;
+        for(const nm in K){ const v=gv(nm); if(v!=null) anyCF=true; cfVals[K[nm]]=v||0; }
+        if(anyCF) a.cf=cfVals;
+        a.cogs=gv('COGS')||0; a.dep=gv('Depreciation')||0; a.wfoa=gv('Works for own assets')||0;
+        a.interest=gv('Interest')||0; a.otherBTL=gv('Other non-EBITDA')||0; a.taxes=gv('Taxes')||0;
+        a.cashClose=cc||0;
+        MODEL.actuals[k]=a;
+        if(cc && (!newest||k>newest)) newest=k;
+      });
+      if(newest && newest>MODEL.params.closedThrough) MODEL.params.closedThrough=newest;
+    }
+    dirty=true; render(); toast('Parameters imported.');
+  }catch(e){ toast('Import failed: '+e.message,true); }
+}
+
+/* ---------- scenarios ---------- */
+let SCN='Budget';
+let SCNS={};
+MODEL=migrateModel(MODEL);
+let BUDGET=MODEL;
+function withModel(m,fn){ const _o=MODEL; MODEL=m; try{ return fn(); } finally { MODEL=_o; } }
+function deepClone(m){ return JSON.parse(JSON.stringify(m)); }
+function syncScnUI(){
+  const sel=$('scnSel'); if(!sel)return;
+  const names=['Budget',...Object.keys(SCNS).sort()];
+  sel.innerHTML=names.map(n=>'<option '+(n===SCN?'selected':'')+'>'+n.replace(/</g,'&lt;')+'</option>').join('');
+  sel.style.borderColor = SCN==='Budget' ? '' : '#C72030';
+  sel.style.color = SCN==='Budget' ? '' : '#C72030';
+  const nb=$('scnNew'), db=$('scnDel');
+  if(nb) nb.style.display = canWrite()? '' : 'none';
+  if(db) db.style.display = (SCN!=='Budget'&&canWrite())? '' : 'none';
+}
+function switchScn(n){
+  SCN=n; MODEL = (n==='Budget') ? BUDGET : SCNS[n];
+  dirty=false; render();
+}
+async function persistScenarios(){
+  if(!CONFIGURED||!canWrite()||!LOAD_OK)return;
+  try{
+    const tok=await writeGuarded('ignion_scenarios',SCNS,SCN_LOADED_AT);
+    if(tok===null){ toast('Scenario sync skipped: scenarios were changed elsewhere. Reload.',true); return; }
+    SCN_LOADED_AT=tok;
+  }catch(e){ toast('Scenario sync failed: '+(e.message||e),true); }
+}
+/* ---------- persistence ---------- */
+let dirty=false;
+/* Conditional write. Updates only if updated_at still equals the value we read,
+   so a document saved by someone else since we loaded is never clobbered.
+   Returns the new updated_at, or null when the row moved under us. */
+async function writeGuarded(key,value,token){
+  const now=new Date().toISOString();
+  let q;
+  if(token===null){
+    q=await sb.from('app_data').insert({key:key,value:value,updated_at:now}).select('updated_at');
+  } else {
+    q=await sb.from('app_data').update({value:value,updated_at:now})
+        .eq('key',key).eq('updated_at',token).select('updated_at');
+  }
+  if(q.error) throw q.error;
+  if(!q.data||!q.data.length) return null;
+  return q.data[0].updated_at||now;
+}
+async function save(){
+  if(!canWrite()){toast('Read only access.',true);return;}
+  if(!CONFIGURED){toast('Preview mode: connect Supabase to save shared data.',true);return;}
+  if(!LOAD_OK){toast('The shared budget did not load, so saving is blocked. Reload the page.',true);return;}
+  if(SCN==='Budget'){
+    if(Object.keys(SCNS).length && typeof window.confirm==='function'
+       && !window.confirm('You are saving the reference Budget, not a scenario. Continue?')) return;
+    try{
+      const tok=await writeGuarded('ignion_model',MODEL,LOADED_AT);
+      if(tok===null){
+        banner('Someone else saved the budget after you loaded it. Your changes were NOT saved. '
+          +'Export this budget to keep your work, then reload and reapply it.');
+        toast('Not saved: the shared budget moved under you.',true);
+        return;
+      }
+      LOADED_AT=tok; REMOTE_AHEAD=false; banner(null);
+      /* actuals are facts: propagate the close to every scenario */
+      let prop=false;
+      for(const n of Object.keys(SCNS)){ SCNS[n].actuals=deepClone(MODEL.actuals); SCNS[n].params.closedThrough=MODEL.params.closedThrough; prop=true; }
+      if(prop) await persistScenarios();
+      dirty=false; toast('Budget saved'+(prop?'; actuals propagated to all scenarios.':'.')); }
+    catch(e){ toast('Save failed: '+(e.message||e),true); try{ console.error('[ignion] save failed:',e); }catch(_){} }
+  } else {
+    SCNS[SCN]=MODEL;
+    try{
+      const tok=await writeGuarded('ignion_scenarios',SCNS,SCN_LOADED_AT);
+      if(tok===null){
+        banner('Someone else saved a scenario after you loaded. Your changes were NOT saved. Reload and reapply.');
+        toast('Not saved: scenarios moved under you.',true);
+        return;
+      }
+      SCN_LOADED_AT=tok; dirty=false; banner(null); toast('Scenario "'+SCN+'" saved.'); }
+    catch(e){ toast('Save failed: '+(e.message||e),true); try{ console.error('[ignion] save failed:',e); }catch(_){} }
+  }
+}
+async function loadShared(){
+  /* Contract: on return, either LOAD_OK is true and MODEL is the shared budget
+     (or the seed, when the table is provably empty on a first run), or LOAD_OK
+     is false and a banner explains why. It never fails silently.
+     Note that maybeSingle() returns {data:null,error:null} both when no row
+     exists and when row level security filters the row out. Those cases are not
+     distinguishable from the client, so we refuse to guess: no row means no
+     save, and the banner says so. */
+  LOAD_OK=false; LOADED_AT=null; SCN_LOADED_AT=null; banner(null);
+  let row=null;
+  try{
+    const {data,error}=await sb.from('app_data').select('value,updated_at').eq('key','ignion_model').maybeSingle();
+    if(error) throw error;
+    row=data;
+  }catch(e){
+    loadFailed('Could not read the shared budget: '+(e.message||e)+'.');
+    return;
+  }
+  if(row&&row.value){
+    MODEL=migrateModel(row.value); BUDGET=MODEL; LOADED_AT=row.updated_at||null; LOAD_OK=true;
+  } else {
+    /* No row came back. Do not present the seed as if it were the budget. */
+    loadFailed('No shared budget was returned for key ignion_model. You are looking at an empty starter model, not the company budget. '
+      +'This is either a genuine first run or a read permission problem on app_data.');
+    return;
+  }
+  try{
+    const {data:d2,error:e2}=await sb.from('app_data').select('value,updated_at').eq('key','ignion_scenarios').maybeSingle();
+    if(e2) throw e2;
+    if(d2&&d2.value){ SCNS=d2.value; for(const n in SCNS) SCNS[n]=migrateModel(SCNS[n]); SCN_LOADED_AT=d2.updated_at||null; }
+  }catch(e){
+    /* Scenarios are not load bearing for the close, so this degrades rather
+       than blocks, but it is still reported. */
+    toast('Scenarios could not be read: '+(e.message||e),true);
+    try{ console.error('[ignion] scenario load failed:',e); }catch(_){}
+  }
+  if(SCN!=='Budget'&&!SCNS[SCN]){ SCN='Budget'; MODEL=BUDGET; }
+}
+function subscribeLive(){
+  if(!sb||!sb.channel)return;
+  try{ sb.channel('ignion_live').on('postgres_changes',{event:'*',schema:'public',table:'app_data'},pl=>{
+    const row=pl.new||pl.old; if(!row)return;
+    if(row.key==='ignion_model'&&row.value){
+      /* Track the new version so a later save is compared against reality.
+         When we hold unsaved edits we do not clobber them, but we must say so,
+         because the previous behaviour was to drop the update in silence and
+         then overwrite the other person's work on the next save. */
+      if(row.updated_at) LOADED_AT_REMOTE=row.updated_at;
+      if(SCN==='Budget'&&dirty){
+        REMOTE_AHEAD=true;
+        banner('Another user just saved the budget. Your unsaved edits are still here, but they are now based on an old copy. '
+          +'Export this budget to keep your work, then reload.','warn');
+        return;
+      }
+      BUDGET=migrateModel(row.value);
+      if(row.updated_at) LOADED_AT=row.updated_at;
+      if(SCN==='Budget'){ MODEL=BUDGET; }
+      render(); }
+    if(row.key==='ignion_scenarios'&&row.value){ SCNS=row.value; for(const n in SCNS) SCNS[n]=migrateModel(SCNS[n]);
+      if(SCN!=='Budget'){ if(dirty)return; if(SCNS[SCN]){ MODEL=SCNS[SCN]; } else { SCN='Budget'; MODEL=BUDGET; toast('The active scenario was deleted elsewhere; back on Budget.',true); } render(); }
+      else syncScnUI(); } }).subscribe(); }catch(e){}
+}
+async function copyChartPNG(id){
+  try{
+    const card=$(id); if(!card){toast('Section not found.',true);return;}
+    const svg=card.querySelector('svg');
+    let cv;
+    if(svg){
+      const vb=svg.viewBox.baseVal; const scale=2;
+      const xml=new XMLSerializer().serializeToString(svg);
+      const img=new Image();
+      const url='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(xml)));
+      await new Promise((res,rej)=>{img.onload=res;img.onerror=rej;img.src=url;});
+      cv=document.createElement('canvas'); cv.width=vb.width*scale; cv.height=vb.height*scale;
+      const cx2=cv.getContext('2d'); cx2.fillStyle='#FFFFFF'; cx2.fillRect(0,0,cv.width,cv.height);
+      cx2.drawImage(img,0,0,cv.width,cv.height);
+    } else {
+      if(typeof html2canvas==='undefined'){toast('Image library not loaded; check the connection and reload.',true);return;}
+      cv=await html2canvas(card,{backgroundColor:'#FFFFFF',scale:2,
+        ignoreElements:el=>el.classList&&el.classList.contains('cbtn')});
+    }
+    const blob=await new Promise(res=>cv.toBlob(res,'image/png'));
+    if(navigator.clipboard && window.ClipboardItem){
+      await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);
+      toast('Copied as PNG. Paste it into your presentation.');
+    } else {
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=id+'.png'; a.click();
+      toast('Clipboard not available here; downloaded as PNG instead.');
+    }
+  }catch(e){ toast('Copy failed: '+(e.message||e),true); }
+}
+function banner(msg,kind){
+  /* A persistent bar, unlike toast which disappears after 3 seconds. Used only
+     for conditions the user must act on: failed load, stale copy, blocked save. */
+  let b=$('igBanner');
+  if(!b){ b=document.createElement('div'); b.id='igBanner';
+    b.style.cssText='position:fixed;left:0;right:0;top:0;z-index:9999;padding:10px 16px;'
+      +'font:600 13px Arial,Helvetica,sans-serif;color:#fff;text-align:center;'
+      +'box-shadow:0 2px 8px rgba(0,0,0,.18)';
+    document.body.appendChild(b); }
+  if(!msg){ b.style.display='none'; return; }
+  b.style.background = kind==='warn' ? '#B06A00' : '#C72030';
+  b.textContent=msg; b.style.display='block';
+}
+function loadFailed(msg){
+  LOAD_OK=false;
+  banner(msg+' Saving is disabled so the shared budget cannot be overwritten. Reload once resolved.');
+  try{ applyRole(); }catch(e){}
+  try{ console.error('[ignion] shared load failed:',msg); }catch(e){}
+}
+function toast(msg,err){ const t=$('toast'); t.textContent=msg; t.style.background=err?'#C72030':'#282828'; t.classList.add('on'); setTimeout(()=>t.classList.remove('on'),3200); }
+
+/* ---------- auth ---------- */
+async function fetchRole(uid){ try{ const {data}=await sb.from('profiles').select('role').eq('id',uid).maybeSingle(); return (data&&data.role)||'ro'; }catch(e){ return 'ro'; } }
+function applyRole(){ const rw=canSave();
+  $('userChip').style.display='inline-flex'; $('userName').textContent=currentUser?currentUser.email:'';
+  $('userRole').textContent=canWrite()?(LOAD_OK?'read and write':'write blocked'):'read only'; $('userChip').classList.toggle('ro',!rw);
+  $('outBtn').style.display='inline-flex'; $('saveBtn').style.display=rw?'':'none'; $('xlIn').style.display=rw?'':'none'; }
+async function onSignedIn(u){ currentUser=u; ROLE=await fetchRole(u.id); $('login').classList.remove('on'); applyRole();
+  if(!booted){booted=true; await loadShared(); render();} else render();
+  if(!subscribed){subscribed=true; subscribeLive();} }
+async function bootAuth(){
+  if(!CONFIGURED){ $('modeChip').textContent='Preview'; render(); return; }
+  $('modeChip').textContent='Shared';
+  try{ const {data}=await sb.auth.getSession(); if(data&&data.session){ await onSignedIn(data.session.user); return; } }catch(e){}
+  $('login').classList.add('on');
+}
+$('liBtn').onclick=async()=>{
+  const {data,error}=await sb.auth.signInWithPassword({email:$('liUser').value.trim(),password:$('liPass').value});
+  if(error){$('liErr').textContent=error.message;return;}
+  $('liErr').textContent=''; await onSignedIn(data.user); };
+$('outBtn').onclick=async()=>{ try{await sb.auth.signOut();}catch(e){} location.reload(); };
+$('saveBtn').onclick=save;
+$('xlOut').onclick=exportParams;
+$('scnSel').onchange=e=>{ const n=e.target.value;
+  if(n===SCN)return;
+  if(dirty && typeof window.confirm==='function' && !window.confirm('Discard unsaved changes in "'+SCN+'"?')){ syncScnUI(); return; }
+  switchScn(n); };
+$('scnNew').onclick=()=>{ if(!canWrite()){toast('Read only access.',true);return;}
+  const n=(typeof window.prompt==='function')? window.prompt('Name for the new scenario (starts as a copy of "'+SCN+'"):') : null;
+  if(!n)return; const nm=n.trim();
+  if(!nm||nm.toLowerCase()==='budget'){toast('Pick a name other than Budget.',true);return;}
+  if(SCNS[nm]){toast('A scenario with that name already exists.',true);return;}
+  SCNS[nm]=deepClone(MODEL); SCN=nm; MODEL=SCNS[nm]; dirty=true;
+  toast('Scenario "'+nm+'" created in this session. Save to publish it.'); render(); };
+$('scnDel').onclick=async()=>{ if(SCN==='Budget'||!canWrite())return;
+  if(typeof window.confirm==='function' && !window.confirm('Delete scenario "'+SCN+'" for everyone?'))return;
+  delete SCNS[SCN]; SCN='Budget'; MODEL=BUDGET; dirty=false;
+  await persistScenarios(); toast('Scenario deleted.'); render(); };
+$('xlTpl').onclick=exportTemplate;
+$('xlIn').onclick=()=>{ if(!canWrite()){toast('Read only access.',true);return;} $('xlFile').click(); };
+$('xlFile').onchange=e=>{ if(e.target.files[0]) importParams(e.target.files[0]); e.target.value=''; };
+window.addEventListener('beforeunload',e=>{ if(dirty){e.preventDefault();e.returnValue='';} });
+const CS_BODY="\n<h2>1. Formulas by subtab, and where each lands in the P&amp;L and the cashflow</h2>\n<h3>Revenue &amp; GM</h3>\n<ul>\n<li>Inputs: Revenue USD per line and month, GM% per line and month.</li>\n<li><span class=\"cs-f\">Revenue EUR = Revenue USD / FX of the month</span>. <span class=\"cs-f\">COGS = - Revenue x (1 - GM%)</span>. Closed months read booked actuals instead.</li>\n<li>P&amp;L: the eight revenue lines, COGS and gross margin at the top. Cashflow: commercial revenue collects with the DSO lag, day-weighted across months; the Grants line does not follow DSO, it collects per the Grants tab schedules.</li>\n</ul>\n<h3>Compensation</h3>\n<ul>\n<li><span class=\"cs-f\">Loaded monthly = gross x (1 + country SS rate) + (bonus + variable) / 12</span>, counted from the start month. A dismissal stops the cost in the dismissal month and books the severance there: <span class=\"cs-f\">redundancy = (gross x 12 + bonus + variable) / 365 x days per year of service x tenure years</span> (capped at the months cap) <span class=\"cs-f\">+ notice + non-compete</span>. Payback months = exit cost / (loaded annual / 12).</li>\n<li>2028 to 2030: <span class=\"cs-f\">loaded x months active in the year x salary step-up chain</span>; starts and dismissals prorate by month, severance books in the dismissal year.</li>\n<li>The bonus accrues at <span class=\"cs-f\">bonus x payout % of the year</span> (Parameters); severance bases keep the full register bonus.</li>\n<li>P&amp;L: department compensation inside Total OPEX. Cashflow: salaries and severance pay through the DPO lag; the bonus does not pay monthly, the year's accrued bonus leaves as one lump in the chosen month of the following year.</li>\n</ul>\n<h3>Other OPEX</h3>\n<ul>\n<li>Monthly inputs per cost center. 2028 to 2030 are computed, not typed: <span class=\"cs-f\">2027 total of the row x (1 + step 2028%) x (1 + step 2029%) x (1 + step 2030%)</span> of its department.</li>\n<li>P&amp;L: department non-comp inside Total OPEX. Cashflow: pays through the DPO lag.</li>\n</ul>\n<h3>Below EBITDA</h3>\n<ul>\n<li>Direct inputs: D&amp;A, write-offs and other, interest, other below-EBITDA. <span class=\"cs-f\">EBT = EBITDA + D&amp;A + write-offs + interest + other</span>; <span class=\"cs-f\">net income = EBT + tax</span>.</li>\n<li>Cashflow: none of these lines moves cash directly. D&amp;A is non-cash and tax has no cash line in the engine. The P&amp;L interest is automatic: the Debt tab schedules flow into it by themselves, and the Interest input here is an overlay for interest outside those schedules (leases, FX charges), also non-cash unless scheduled on the Debt tab.</li>\n</ul>\n<h3>Capex &amp; WC</h3>\n<ul>\n<li>Capex per department and month: no P&amp;L effect (depreciation is the D&amp;A input); cash out in full in its month, no DPO lag.</li>\n<li>Working capital lines: direct cash adjustments in their month, inside operating cash flow; no P&amp;L effect.</li>\n</ul>\n<h3>Financing</h3>\n<ul>\n<li>Capital in and other financing: cash in per month entered, financing section; no P&amp;L effect.</li>\n</ul>\n<h3>Debt</h3>\n<ul>\n<li>Per instrument: drawdowns (cash in, financing), repayments (cash out, financing), interest (cash out, operating, paid in its month with no DPO lag). The same interest schedules flow automatically into the P&amp;L interest line, so expense and payment always agree by construction.</li>\n</ul>\n<h3>Grants</h3>\n<ul>\n<li>Per grant: collection and repayment schedules, cash only, financing section. The Grants revenue line in Revenue &amp; GM is the P&amp;L side and is independent, keep the two coherent.</li>\n</ul>\n<h3>P&amp;L and Cashflow tabs</h3>\n<ul>\n<li>Pure outputs, nothing typed. P&amp;L per period: revenue to net income with the identities above. Cashflow: <span class=\"cs-f\">operating = collections + payments + working capital + debt interest</span>; <span class=\"cs-f\">investments = capex</span>; <span class=\"cs-f\">net cash flow = operating + investments + financing</span>; in closed months an explicit actuals reconciliation row carries the difference between booked cash and the modelled flows, so every column foots; <span class=\"cs-f\">closing cash = opening + net cash flow</span>, each month opening at the prior close. January 2026 opens at the opening cash parameter; closed months anchor to the booked closing cash; 2028 to 2030 derive from the annual P&amp;L plus the same schedules. Bonus cash is re-phased: each year's accrual is stripped from the monthly cost base and paid as a lump in the payout month of the following year; the lump is the full-year entitlement prorated by service months; the 2030 accrual pays beyond the horizon.</li>\n</ul>\n<h3>Overview</h3>\n<ul>\n<li>Reads the outputs only: KPI strip, revenue charts, department P&amp;L, cash curve against the 1.0M EUR safety net, severance panel (exit cost, annual saving, payback per dismissed employee) and the scenario comparison.</li>\n<li>A live integrity check re-sums the 24 monthly P&amp;L and cashflow columns independently on every render and compares them to the 2026 and 2027 annual summaries, line by line including per-department compensation and the cash footing; it is silent when everything ties and shows a red banner naming the broken lines if it ever does not.</li>\n</ul>\n<h2>2. How each parameter influences the budget</h2>\n<ul>\n<li><b>Opening cash 2026</b>: the starting point of the cash chain; every closing balance moves one for one with it until the first closed month anchor.</li>\n<li><b>Closed through</b>: locks all inputs of closed months, anchors their cash to booked closes, and advances only by filling a month in the Actuals sheet including its closing cash.</li>\n<li><b>Tax rate</b>: net income only; no cash effect.</li>\n<li><b>FX USD per EUR (monthly curve)</b>: converts the USD revenue inputs; a higher rate means fewer EUR of revenue, margin and collections in that month.</li>\n<li><b>DSO days (monthly curve)</b>: delays collections; 30 more days pushes each month's commercial revenue one month later in cash, worsening the trough.</li>\n<li><b>DPO days (monthly curve)</b>: delays payments; more days retain cash longer and flatter the trough, fewer days do the opposite.</li>\n<li><b>Social security rates by country</b>: load every salary; they move department comp, EBITDA, the severance saving and payback of every dismissal in that country.</li>\n<li><b>Severance rules</b> (days per year and cap by country; the Spain dismissal type toggle sets 20 days capped at 12 months for objective or 33 capped at 24 for unfair): price the redundancy of every dismissal; the toggle can move a Spanish exit cost by roughly two thirds upward.</li>\n<li><b>Non-comp OPEX step-up % (department x 2028, 2029, 2030)</b>: builds long-range non-comp from the 2027 base, compounding; seeded at the increases implied by the reconciled budget, so the budget ties until you change them.</li>\n<li><b>Salary step-up % (department x year)</b>: indexes long-range loaded compensation, compounding; seeded at zero. Severance amounts are not indexed.</li>\n<li><b>Bonus pay month (per accrual year)</b>: the month of the following year when the year's bonus pool leaves cash; it moves the outflow across the year boundary without touching the P&amp;L.</li>\n<li><b>Bonus payout % (per accrual year)</b>: scales the bonus accrued in compensation, so 80% accrues and pays 80% of the register bonuses; EBITDA, savings and the lump all follow; severance bases do not.</li>\n</ul>\n<h2>3. Workflow to operate the tool</h2>\n<ul>\n<li><b>Roles.</b> Read-write users edit and save; read-only users see everything but change nothing. New users start read-only.</li>\n<li><b>Edit then Save.</b> All edits are local to your browser until you press Save, which publishes to the shared database. Leaving with unsaved changes triggers a warning.</li>\n<li><b>Monthly close.</b> On the Budget only: import a template with the month's Actuals column filled, including the closing cash. The month locks everywhere, the closed-through marker advances, and the next Save propagates actuals to every scenario.</li>\n<li><b>Closed months are immutable.</b> Grids show them shaded; imports cannot write them by construction.</li>\n</ul>\n<h2>4. Scenarios</h2>\n<ul>\n<li><b>New scenario</b> clones the active model under a name. The selector turns red when you are not on the Budget.</li>\n<li>Edits and Save apply to the active scenario only. Budget stays the reference; actuals enter through the Budget and propagate to all scenarios on Budget save. Actuals import is blocked on non-Budget scenarios.</li>\n<li><b>Delete scenario</b> is permanent. The Overview shows a comparison table and cash chart when scenarios exist: Budget solid, scenarios dashed.</li>\n</ul>\n<h2>5. Downloading and uploading budgets</h2>\n<ul>\n<li><b>Download budget template</b>: a prefilled workbook of every input; closed columns are marked and will be ignored on import. Edit any open cell in Excel.</li>\n<li><b>Export this budget</b>: the complete archive of the active scenario, inputs including the Step-up and Bonus sheets plus three computed output sheets, P&amp;L, Cashflow and Overview. Importing the file reads only the inputs; the output sheets are recalculated by the tool and ignored on upload.</li>\n<li><b>Import budget template</b>: reads either file. Only open periods are written; employees are updated or added by name, never deleted (use the row dustbin in Compensation to remove someone); the redundancy column is recalculated, not imported. Review, then Save to publish.</li>\n</ul>\n";
+(function(){ const ov=document.createElement('div'); ov.className='csov'; ov.id='csModal';
+  ov.innerHTML='<div class="csp"><div class="cshead"><h1>Ignion FP&amp;A portal cheatsheet</h1><div class="csx">'
+   +'<button class="icobtn" id="csDl" title="Download the cheatsheet"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4.5-4.5M12 15l4.5-4.5M4 19h16"/></svg></button>'
+   +'<button class="icobtn" id="csClose" title="Close"><svg viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"/></svg></button>'
+   +'</div></div><div id="csBody"></div></div>';
+  document.getElementById('ig-root').appendChild(ov); })();
+$('csBody').innerHTML=CS_BODY;
+$('csBtn').onclick=()=>{ $('csModal').classList.add('on'); };
+$('csClose').onclick=()=>{ $('csModal').classList.remove('on'); };
+$('csModal').onclick=e=>{ if(e.target===$('csModal')) $('csModal').classList.remove('on'); };
+$('csDl').onclick=()=>{
+  const doc='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Ignion FP&A portal cheatsheet</title><style>body{font-family:Arial,Helvetica,sans-serif;color:#282828;max-width:900px;margin:30px auto;padding:0 20px}h1{color:#660708;font-size:20px;border-bottom:4px solid #C72030;padding-bottom:8px}h2{color:#660708;font-size:16px;margin:22px 0 8px;border-bottom:1px solid #E2D9D3;padding-bottom:4px}h3{color:#C72030;font-size:13px;margin:14px 0 4px}p,li{font-size:12.5px;line-height:1.55}ul{margin:4px 0 10px 18px;padding:0}.cs-f{font-family:Consolas,Menlo,monospace;font-size:12px;background:#F7F3F0;border:1px solid #E2D9D3;border-radius:4px;padding:1px 6px;white-space:nowrap}</style></head><body><h1>Ignion FP&A portal cheatsheet</h1>'+CS_BODY+'<p style="color:#8A8078">Generated from the FP&A portal, '+new Date().toISOString().slice(0,10)+'</p></body></html>';
+  const b=new Blob([doc],{type:'text/html'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='Ignion_FPA_cheatsheet.html'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),500);
+};
+bootAuth();
+</script>
+</div>
+</body>
+</html>
