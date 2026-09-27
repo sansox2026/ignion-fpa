@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ignion FP&A</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
@@ -503,7 +504,11 @@ function integrityCheck(){ /* independently re-sums the monthly detail and compa
 const YRS=['2025','2026','2027','2028','2029','2030'];
 function yearMonths(Y){ return Y==='2026'?M26 : Y==='2027'?M27 : null; }
 function annualPL(Y){
-  if(Y==='2025'){ return A('2025'); }
+  /* A('2025') is null when no 2025 actuals are present. Every caller then
+     reads .trev off null, which surfaced as a false "Import failed" toast on
+     a model without 2025. Fall back to the forecast basis, which is what
+     pl('2025') already does. */
+  if(Y==='2025'){ return A('2025')||P('2025'); }
   const ms=yearMonths(Y);
   if(!ms) return pl(Y);
   const agg={rev:{},trev:0,tcogs:0,gm:0,comp:{},otherOpex:{},opex:{},topex:0,ebitda:0,dep:0,wfoa:0,interest:0,otherBTL:0,ebt:0,tax:0,net:0};
@@ -1235,32 +1240,477 @@ function appendOutputSheets(wb){ /* computed outputs; ignored on import by const
   setFmt(wsO,fM,rowFmts);
   XLSX.utils.book_append_sheet(wb,wsO,'Overview');
 }
+
+/* ==================================================================
+   Investor-grade export. ExcelJS, because SheetJS CE writes number
+   formats but not styles, so fills, fonts and images are unreachable
+   from the old path.
+
+   Layout contract, relied on by every formula below. Input sheets keep
+   their header on row 1 and literal values, exactly as buildParamWB
+   writes them, so this workbook still imports. Formulas appear only on
+   P&L, Cashflow and Overview, which the importer ignores.
+   ================================================================== */
+const IG = { red:'FFC72030', dark:'FF660708', ink:'FF282828', mid:'FF6E6E6E',
+             beige:'FFF1ECE8', line:'FFE2D9D3', white:'FFFFFFFF', soft:'FFFDF7F5' };
+const FMT = { eur:'€#,##0', eur2:'€#,##0.00', usd:'$#,##0',
+              pct:'0.0%', rate:'0.0000', days:'0', int:'0',
+              eurM:'€#,##0.0,,"M"' };
+
+/* A1 helpers. Column letters must survive beyond Z: 28 period columns
+   reach AC. */
+function colL(n){ let s=''; while(n>0){ const r=(n-1)%26; s=String.fromCharCode(65+r)+s; n=(n-r-1)/26; } return s; }
+function qn(sheet){ return /[^A-Za-z0-9_]/.test(sheet) ? "'"+sheet.replace(/'/g,"''")+"'" : sheet; }
+function ref(sheet,col,row){ return qn(sheet)+'!'+colL(col)+row; }
+function rng(sheet,col,r1,r2){ return qn(sheet)+'!'+colL(col)+r1+':'+colL(col)+r2; }
+
+/* Row maps for the input sheets, mirroring buildParamWB exactly. */
+function inputRowMaps(){
+  const m={};
+  m.revRow={}; LINES.forEach((l,i)=>m.revRow[l]=2+i);            /* Revenue USD, GM pct */
+  m.capexRow={}; DEPTS.forEach((d,i)=>m.capexRow[d]=2+i);         /* Capex */
+  m.btlRow={dep:2,wfoa:3,other:4};                                /* Below EBITDA */
+  m.ratesRow={fx:2,dso:3,dpo:4};                                  /* Rates */
+  m.finRow={capIn:2,otherFin:3};                                  /* Financing */
+  m.wcN=MODEL.wcLines.length;                                     /* Working capital, rows 2..1+n */
+  m.ooN=MODEL.otherOpex.length;                                   /* Other OPEX,      rows 2..1+n */
+  /* Actuals: row 1 header, row 2 Status, then ALINES from row 3. */
+  const AL=[...LINES.map(l=>'Revenue '+LNAME[l]),'COGS',...DEPTS.map(d=>'OPEX '+d),...DEPTS.map(d=>'Comp '+d),
+    'CF EBITDA','CF Bonus 2026','CF Bonus 2025','CF Other working capital','CF Interest','CF WC adjustments',
+    'CF Capex','CF Debt repayment','CF Debt raised','CF Capital raised','CF Grants raised',
+    'Depreciation','Works for own assets','Interest','Other non-EBITDA','Taxes','Cash close'];
+  m.actRow={}; AL.forEach((nm,i)=>m.actRow[nm]=3+i);
+  m.ALINES=AL;
+  return m;
+}
+
+/* Column of a period. Input sheets and Cashflow start at B for PERIODS[0];
+   the P&L carries 2025 first, so it is one further right. */
+const icol = p => 2+PERIODS.indexOf(p);          /* input sheets, Cashflow */
+const acol = p => 2+MONTHS.indexOf(p);           /* Actuals sheet */
+const pcol = p => 2+OUTCOLS.indexOf(p);          /* P&L */
+
+function styleHeaderRow(ws,row,ncols){
+  for(let c=1;c<=ncols;c++){ const cell=ws.getCell(row,c);
+    cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:IG.red}};
+    cell.font={name:'Arial',size:9.5,bold:true,color:{argb:IG.white}};
+    cell.alignment={horizontal:c===1?'left':'right',vertical:'middle',wrapText:false};
+    cell.border={bottom:{style:'thin',color:{argb:IG.dark}}}; }
+  ws.getRow(row).height=20;
+}
+function styleBand(ws,row,ncols,kind){
+  for(let c=1;c<=ncols;c++){ const cell=ws.getCell(row,c);
+    cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:kind==='hard'?IG.beige:IG.soft}};
+    cell.font={name:'Arial',size:9.5,bold:true,color:{argb:kind==='hard'?IG.dark:IG.ink}};
+    cell.border={top:{style:'thin',color:{argb:IG.line}},bottom:{style:kind==='hard'?'thin':'hair',color:{argb:IG.line}}}; }
+}
+function styleBody(ws,r1,r2,ncols){
+  for(let r=r1;r<=r2;r++) for(let c=1;c<=ncols;c++){ const cell=ws.getCell(r,c);
+    if(!cell.font) cell.font={name:'Arial',size:9.5,color:{argb:IG.ink}};
+    cell.alignment={horizontal:c===1?'left':'right'}; }
+}
+function setFmt(ws,r1,r2,c1,c2,fmt){ for(let r=r1;r<=r2;r++) for(let c=c1;c<=c2;c++) ws.getCell(r,c).numFmt=fmt; }
+
+/* A data sheet: header on row 1, literal values below, red band, frozen
+   first column and header. */
+function gridSheet(wbx,name,header,rows,fmt,opts){
+  opts=opts||{};
+  const ws=wbx.addWorksheet(name,{views:[{state:'frozen',xSplit:1,ySplit:1}],
+    pageSetup:{orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,
+               printTitlesRow:'1:1',printTitlesColumn:'A:A',
+               margins:{left:0.3,right:0.3,top:0.4,bottom:0.4,header:0.2,footer:0.2}}});
+  ws.addRow(header);
+  rows.forEach(r=>ws.addRow(r));
+  const nc=header.length;
+  styleHeaderRow(ws,1,nc);
+  styleBody(ws,2,rows.length+1,nc);
+  if(fmt) setFmt(ws,2,rows.length+1,2,nc,fmt);
+  ws.getColumn(1).width=opts.w1||34;
+  for(let c=2;c<=nc;c++) ws.getColumn(c).width=opts.wc||12;
+  if(opts.rowFmts) for(const r in opts.rowFmts) setFmt(ws,+r,+r,2,nc,opts.rowFmts[r]);
+  return ws;
+}
+
+async function buildBrandedWB(){
+  if(typeof ExcelJS==='undefined') throw new Error('The Excel library did not load. Check the connection and reload.');
+  const M=inputRowMaps();
+  const wbx=new ExcelJS.Workbook();
+  wbx.creator='Xavier Sanso'; wbx.company='Ignion'; wbx.created=new Date();
+  const PL_N=1+OUTCOLS.length, CF_N=1+PERIODS.length;
+  const PH=PERIODS.map(plabel), OH=OUTCOLS.map(plabel);
+
+  /* ---------------- Cover ---------------- */
+  const cv=wbx.addWorksheet('Cover',{views:[{showGridLines:false}]});
+  try{
+    const imgId=wbx.addImage({base64:LOGO.split(',')[1],extension:'png'});
+    /* The mark is 360x138, so the box must keep that ratio or the red
+       glyph is cropped. */
+    cv.addImage(imgId,{tl:{col:0.4,row:0.6},ext:{width:270,height:104}});
+  }catch(e){ /* the workbook is still valid without the mark */ }
+  cv.getCell('B7').value='Financial plan';
+  cv.getCell('B7').font={name:'Arial',size:26,bold:true,color:{argb:IG.ink}};
+  cv.getCell('B8').value=(SCN==='Budget'?'Budget':'Scenario: '+SCN)
+    +'  |  actuals closed through '+MODEL.params.closedThrough;
+  cv.getCell('B8').font={name:'Arial',size:12,color:{argb:IG.mid}};
+  cv.getCell('B10').value='Generated '+new Date().toISOString().slice(0,10)+' from the Ignion FP&A portal';
+  cv.getCell('B10').font={name:'Arial',size:10,color:{argb:IG.mid}};
+  [['B12','Basis of preparation',''],
+   ['B13','Currency','Revenue is entered in USD and converted at the monthly rate on the Rates sheet. Every other figure is EUR.'],
+   ['B14','Closed months','Read booked actuals. They are locked and cannot be overwritten from the forecast sheets.'],
+   ['B15','Open months','Computed from the input sheets.'],
+   ['B16','Output sheets','P&L, Cashflow and Overview are formula driven and reference the input sheets. Nothing on them is typed.'],
+   ['B17','Round trip','This file can be re-imported. Only the input sheets are read; the output sheets are recalculated by the portal.']
+  ].forEach(([a,k,v])=>{
+    cv.getCell(a).value=k; cv.getCell(a).font={name:'Arial',size:10,bold:true,color:{argb:IG.dark}};
+    const c2=a[0]==='B'?('D'+a.slice(1)):a; cv.getCell(c2).value=v;
+    cv.getCell(c2).font={name:'Arial',size:10,color:{argb:IG.ink}};
+    cv.getCell(c2).alignment={wrapText:true,vertical:'top'};
+  });
+  cv.getColumn(1).width=3; cv.getColumn(2).width=24; cv.getColumn(3).width=2; cv.getColumn(4).width=78;
+  cv.pageSetup={orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,
+                margins:{left:0.4,right:0.4,top:0.5,bottom:0.5,header:0.2,footer:0.2}};
+  cv.getCell('B12').font={name:'Arial',size:13,bold:true,color:{argb:IG.red}};
+
+  /* ---------------- input sheets, values, importable ---------------- */
+  const hdrP=['Line',...PH];
+  gridSheet(wbx,'Revenue USD',hdrP,LINES.map(l=>[LNAME[l],...PERIODS.map(p=>num((MODEL.revenueUSD[l]||{})[p]))]),FMT.usd);
+  gridSheet(wbx,'GM pct',hdrP,LINES.map(l=>[LNAME[l],...PERIODS.map(p=>num((MODEL.gmPct[l]||{})[p]))]),FMT.pct);
+  gridSheet(wbx,'Other OPEX',hdrP,MODEL.otherOpex.map(r=>[r.dept+' | '+r.costCenter,...PERIODS.map(p=>num((r.values||{})[p]))]),FMT.eur,{w1:44});
+  gridSheet(wbx,'Capex',hdrP,DEPTS.map(d=>[d,...PERIODS.map(p=>num((MODEL.capex[d]||{})[p]))]),FMT.eur);
+  gridSheet(wbx,'Below EBITDA',hdrP,[
+    ['Depreciation',...PERIODS.map(p=>num(MODEL.nonEbitda.dep[p]))],
+    ['Works for own assets',...PERIODS.map(p=>num(MODEL.nonEbitda.wfoa[p]))],
+    ['Other non-EBITDA',...PERIODS.map(p=>num(MODEL.nonEbitda.otherBTL[p]))]],FMT.eur);
+
+  const eh=['Name','Dept','Country','Entity','Start','Gross monthly','Bonus annual','Variable annual','Dismiss','Dismiss month','Redundancy','Notice period','Non-compete'];
+  const ews=gridSheet(wbx,'Employees',eh,MODEL.employees.map(e=>[e.name,e.dept,e.country,e.entity,e.start,
+    num(e.grossMonthly),num(e.bonusAnnual),num(e.variableAnnual),e.dismiss,e.dismissDate,
+    Math.round(sevRedundancyCalc(e)*100)/100,num(e.sevNotice),num(e.sevNonCompete)]),null,{w1:26,wc:14});
+  setFmt(ews,2,MODEL.employees.length+1,6,8,FMT.eur2);
+  setFmt(ews,2,MODEL.employees.length+1,11,13,FMT.eur2);
+
+  /* Actuals, with the closed and next-to-close marking kept. */
+  const arows=M.ALINES.map(nm=>[nm,...MONTHS.map(p=>{const a=MODEL.actuals[p]; if(!a)return null;
+    if(nm.startsWith('Revenue ')){const l=LINES.find(x=>LNAME[x]===nm.slice(8));return num(a.revenue[l]);}
+    if(nm==='COGS')return num(a.cogs); if(nm.startsWith('OPEX '))return num(a.opex[nm.slice(5)]);
+    if(nm.startsWith('Comp '))return a.comp?num(a.comp[nm.slice(5)]):null;
+    if(nm.startsWith('CF ')){ if(!a.cf)return null; const K={'CF EBITDA':'ebitda','CF Bonus 2026':'bonus26','CF Bonus 2025':'bonus25','CF Other working capital':'owc','CF Interest':'interest','CF WC adjustments':'wcadj','CF Capex':'capex','CF Debt repayment':'debtRep','CF Debt raised':'debtIn','CF Capital raised':'capIn','CF Grants raised':'grantIn'}; return num(a.cf[K[nm]]); }
+    if(nm==='Depreciation')return num(a.dep); if(nm==='Works for own assets')return num(a.wfoa);
+    if(nm==='Interest')return num(a.interest); if(nm==='Other non-EBITDA')return num(a.otherBTL);
+    if(nm==='Taxes')return num(a.taxes); if(nm==='Cash close')return num(a.cashClose); return null;})]);
+  const status=['Status',...MONTHS.map(p=> closed(p)?'closed':(MONTHS[MONTHS.indexOf(MODEL.params.closedThrough)+1]===p?'NEXT TO CLOSE':'open'))];
+  const aws=gridSheet(wbx,'Actuals',['Line',...MONTHS.map(plabel)],[status,...arows],FMT.eur,{w1:34});
+  styleBand(aws,2,1+MONTHS.length,'hard');
+  setFmt(aws,2,2,2,1+MONTHS.length,'General');
+
+  gridSheet(wbx,'Rates',hdrP,[
+    ['FX USD per EUR',...PERIODS.map(p=>fxAt(p))],
+    ['DSO days',...PERIODS.map(p=>isMonth(p)?dsoAt(p):null)],
+    ['DPO days',...PERIODS.map(p=>isMonth(p)?dpoAt(p):null)]],null,
+    {rowFmts:{2:FMT.rate,3:FMT.days,4:FMT.days}});
+
+const BY=['2026','2027','2028','2029','2030'];
+  gridSheet(wbx,'Bonus',['Parameter',...BY],[
+    ['Pay month (of following year)',...BY.map(Y=>bpMonth(Y))],
+    ['Payout %',...BY.map(Y=>bpPct(Y))],
+    ['Accrued bonus in year',...BY.map(Y=>num(bonusAccrualYear(Y)))]],null,
+    {w1:30,rowFmts:{2:FMT.int,3:FMT.pct,4:FMT.eur}});
+  const bonusCol=Y=>2+BY.indexOf(Y), BONUS_ACC=4;
+
+  const stepRows=[];
+  for(const d of DEPTS) stepRows.push(['Non-comp OPEX step %',d,...['2028','2029','2030'].map(y=>num(((MODEL.params.opexStep||{})[d]||{})[y]))]);
+  for(const d of DEPTS) stepRows.push(['Salary step %',d,...['2028','2029','2030'].map(y=>num(((MODEL.params.salStep||{})[d]||{})[y]))]);
+  const sws=gridSheet(wbx,'Step-up',['Parameter','Department','2028','2029','2030'],stepRows,null,{w1:24,wc:14});
+  setFmt(sws,2,stepRows.length+1,3,5,FMT.pct);
+
+  gridSheet(wbx,'Working capital',hdrP,MODEL.wcLines.map(w=>[w.name,...PERIODS.map(p=>num((w.values||{})[p]))]),FMT.eur);
+  gridSheet(wbx,'Financing',hdrP,[
+    ['Capital in',...PERIODS.map(p=>num((MODEL.financing.capitalIn||{})[p]))],
+    ['Other financing',...PERIODS.map(p=>num((MODEL.financing.otherFin||{})[p]))]],FMT.eur);
+
+  const pws=gridSheet(wbx,'Parameters',['Parameter','Value'],[
+    ['Tax rate',num(MODEL.params.taxRate)],
+    ['Closed through',MODEL.params.closedThrough],
+    ['Opening cash 2026',num(MODEL.params.openingCash)]],null,{w1:26,wc:20});
+  pws.getCell('B2').numFmt=FMT.pct; pws.getCell('B4').numFmt=FMT.eur2;
+
+  /* ---------------- Debt and Grants: schedules that no export carried
+     before, and that the P&L interest line and the financing cash lines
+     now reference. ---------------- */
+  const dRows=[],dMap={drawdowns:[],repayments:[],interest:[]};
+  MODEL.debt.forEach(d=>{
+    ['drawdowns','repayments','interest'].forEach(k=>{
+      dRows.push([d.name+' | '+({drawdowns:'Drawdowns',repayments:'Repayments',interest:'Interest'})[k],
+        ...PERIODS.map(p=>num((d[k]||{})[p]))]);
+      dMap[k].push(dRows.length+1);  /* sheet row = index + 1 header */
+    });
+  });
+  gridSheet(wbx,'Debt',['Instrument | line',...PH],dRows,FMT.eur,{w1:44});
+  const gRows=[],gMap={collections:[],repayments:[]};
+  MODEL.grants.forEach(g=>{
+    ['collections','repayments'].forEach(k=>{
+      gRows.push([g.name+' | '+(k==='collections'?'Collected':'Repaid'),...PERIODS.map(p=>num((g[k]||{})[p]))]);
+      gMap[k].push(gRows.length+1);
+    });
+  });
+  gridSheet(wbx,'Grants',['Grant | line',...PH],gRows,FMT.eur,{w1:44});
+
+  /* Compensation schedule. The payroll engine is not expressible as a
+     sheet formula (start dates, dismissals, proration, bonus payout), so
+     it is presented as its own schedule and the P&L references it,
+     rather than being buried inside a pasted OPEX total. */
+  const compRows=DEPTS.map(d=>[d,...PERIODS.map(p=>{const c=compByDept(p);return num(c[d]);})]);
+  gridSheet(wbx,'Comp schedule',hdrP,compRows,FMT.eur);
+  const compRow={}; DEPTS.forEach((d,i)=>compRow[d]=2+i);
+
+  /* ---- OPEX long range: the 2028-2030 chain, made explicit ----
+     Mirrors rowOpexAt: base is the sum of the row's 2027 months when any is
+     non-zero, otherwise the stored annual of that year; the base is then
+     multiplied by the department's compounding step-up. */
+  const M27a=icol('2027-01'), M27b=icol('2027-12');
+  const stepRowOf=d=>2+DEPTS.indexOf(d);              /* Step-up sheet, non-comp block */
+  const stepColOf=Y=>3+['2028','2029','2030'].indexOf(Y);
+  const chainF=(d,Y)=>['2028','2029','2030'].slice(0,1+['2028','2029','2030'].indexOf(Y))
+      .map(y=>'(1+'+ref('Step-up',stepColOf(y),stepRowOf(d))+')').join('*');
+  const lrRows=MODEL.otherOpex.map((r,i)=>{
+    const sr=2+i;                                      /* its row on Other OPEX */
+    const base='IF(SUM('+qn('Other OPEX')+'!'+colL(M27a)+sr+':'+colL(M27b)+sr+')<>0,'
+              +'SUM('+qn('Other OPEX')+'!'+colL(M27a)+sr+':'+colL(M27b)+sr+'),';
+    return [r.dept+' | '+r.costCenter, r.dept,
+      {formula:'SUM('+qn('Other OPEX')+'!'+colL(M27a)+sr+':'+colL(M27b)+sr+')'},
+      {formula:'IF(SUM('+qn('Other OPEX')+'!'+colL(M27a)+sr+':'+colL(M27b)+sr+')<>0,"2027 base","stored annual")'},
+      ...YEARS.map(Y=>({formula:base+ref('Other OPEX',icol(Y),sr)+')*'+chainF(r.dept,Y)}))];
+  });
+  const lrw=gridSheet(wbx,'OPEX long range',
+    ['Cost center','Department','2027 base','Basis',...YEARS],lrRows,FMT.eur,{w1:40,wc:15});
+  setFmt(lrw,2,lrRows.length+1,4,4,'General');
+  setFmt(lrw,2,lrRows.length+1,2,2,'General');
+  const lrLast=1+lrRows.length;
+  const lrYearCol=Y=>5+YEARS.indexOf(Y);
+  /* Year columns take the chained figure from the schedule; months take the
+     literal cells of the Other OPEX sheet. */
+  const nonCompYearF=(d,Y)=> lrRows.length
+    ? 'SUMIF('+qn('OPEX long range')+'!$B$2:$B$'+lrLast+',"'+d.replace(/"/g,'""')+'",'
+      +qn('OPEX long range')+'!'+colL(lrYearCol(Y))+'$2:'+colL(lrYearCol(Y))+'$'+lrLast+')'
+    : '0';
+
+  /* helper: SUMIF over the Other OPEX rows of one department */
+  const ooLast=1+M.ooN;
+  const nonCompF=(d,p)=>M.ooN? '=SUMIF('+qn('Other OPEX')+'!$A$2:$A$'+ooLast+',"'+d.replace(/"/g,'""')+' | *",'
+      +qn('Other OPEX')+'!'+colL(icol(p))+'$2:'+colL(icol(p))+'$'+ooLast+')' : '=0';
+
+  /* ================= P&L ================= */
+  const pl_=wbx.addWorksheet('P&L',{views:[{state:'frozen',xSplit:1,ySplit:1}],pageSetup:{orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,printTitlesRow:'1:1',printTitlesColumn:'A:A',margins:{left:0.3,right:0.3,top:0.4,bottom:0.4,header:0.2,footer:0.2}}});
+  pl_.addRow(['Line',...OH]);
+  const R={};
+  const add=(label,vals)=>{ pl_.addRow([label,...vals]); return pl_.rowCount; };
+  LINES.forEach(l=>{ R['rev_'+l]=add(LNAME[l],OUTCOLS.map(p=>{
+    if(p==='2025') return num(pl('2025').rev[l]);
+    if(closed(p))  return {formula:ref('Actuals',acol(p),M.actRow['Revenue '+LNAME[l]]).replace(/^/,'')};
+    return {formula:ref('Revenue USD',icol(p),M.revRow[l])+'/'+ref('Rates',icol(p),M.ratesRow.fx)};
+  })); });
+  R.trev=add('Total revenue',OUTCOLS.map((p,i)=>({formula:'SUM('+colL(2+i)+R['rev_'+LINES[0]]+':'+colL(2+i)+R['rev_'+LINES[LINES.length-1]]+')'})));
+  R.cogs=add('COGS',OUTCOLS.map(p=>{
+    if(p==='2025') return num(pl('2025').tcogs);
+    if(closed(p))  return {formula:ref('Actuals',acol(p),M.actRow['COGS'])};
+    const c=colL(icol(p)), r1=M.revRow[LINES[0]], r2=M.revRow[LINES[LINES.length-1]];
+    return {formula:'-SUMPRODUCT('+qn('Revenue USD')+'!'+c+r1+':'+c+r2+',1-'+qn('GM pct')+'!'+c+r1+':'+c+r2+')/'+ref('Rates',icol(p),M.ratesRow.fx)};
+  }));
+  R.gm=add('Gross margin',OUTCOLS.map((p,i)=>({formula:colL(2+i)+R.trev+'+'+colL(2+i)+R.cogs})));
+  DEPTS.forEach(d=>{ R['opex_'+d]=add('OPEX '+d,OUTCOLS.map(p=>{
+    if(p==='2025') return num(pl('2025').opex[d]);
+    if(closed(p))  return {formula:ref('Actuals',acol(p),M.actRow['OPEX '+d])};
+    const nc = isMonth(p) ? nonCompF(d,p).slice(1) : nonCompYearF(d,p);
+    return {formula:ref('Comp schedule',icol(p),compRow[d])+'+'+nc};
+  })); });
+  R.topex=add('Total OPEX',OUTCOLS.map((p,i)=>({formula:'SUM('+colL(2+i)+R['opex_'+DEPTS[0]]+':'+colL(2+i)+R['opex_'+DEPTS[DEPTS.length-1]]+')'})));
+  R.ebitda=add('EBITDA',OUTCOLS.map((p,i)=>({formula:colL(2+i)+R.gm+'-'+colL(2+i)+R.topex})));
+  R.dep=add('Depreciation',OUTCOLS.map(p=> p==='2025'?num(pl('2025').dep)
+    : ({formula: closed(p)?ref('Actuals',acol(p),M.actRow['Depreciation']):ref('Below EBITDA',icol(p),M.btlRow.dep)})));
+  R.wfoa=add('Works for own assets',OUTCOLS.map(p=> p==='2025'?num(pl('2025').wfoa)
+    : ({formula: closed(p)?ref('Actuals',acol(p),M.actRow['Works for own assets']):ref('Below EBITDA',icol(p),M.btlRow.wfoa)})));
+  R.int=add('Interest',OUTCOLS.map(p=>{
+    if(p==='2025') return num(pl('2025').interest);
+    if(closed(p))  return {formula:ref('Actuals',acol(p),M.actRow['Interest'])};
+    /* interest = manual overlay minus the Debt schedule interest rows */
+    const man=num((MODEL.nonEbitda.interestManual||{})[p]);
+    if(!dMap.interest.length) return man - MODEL.debt.reduce((s,d)=>s+num((d.interest||{})[p]),0);
+    const parts=dMap.interest.map(r=>ref('Debt',icol(p),r));
+    return {formula:man+'-('+parts.join('+')+')'};
+  }));
+  R.obtl=add('Other non-EBITDA',OUTCOLS.map(p=> p==='2025'?num(pl('2025').otherBTL)
+    : ({formula: closed(p)?ref('Actuals',acol(p),M.actRow['Other non-EBITDA']):ref('Below EBITDA',icol(p),M.btlRow.other)})));
+  R.ebt=add('EBT',OUTCOLS.map((p,i)=>{const c=colL(2+i);
+    return {formula:c+R.ebitda+'+'+c+R.dep+'+'+c+R.wfoa+'+'+c+R.int+'+'+c+R.obtl};}));
+  R.tax=add('Taxes',OUTCOLS.map((p,i)=>{
+    if(p==='2025') return num(pl('2025').tax);
+    if(closed(p))  return {formula:ref('Actuals',acol(p),M.actRow['Taxes'])};
+    const c=colL(2+i);
+    return {formula:'IF('+c+R.ebt+'>0,-'+c+R.ebt+'*'+qn('Parameters')+'!$B$2,0)'};
+  }));
+  R.net=add('Net income',OUTCOLS.map((p,i)=>({formula:colL(2+i)+R.ebt+'+'+colL(2+i)+R.tax})));
+  styleHeaderRow(pl_,1,PL_N); styleBody(pl_,2,pl_.rowCount,PL_N);
+  setFmt(pl_,2,pl_.rowCount,2,PL_N,FMT.eur);
+  [R.trev,R.gm,R.topex,R.ebitda,R.ebt,R.net].forEach(r=>styleBand(pl_,r,PL_N,'hard'));
+  pl_.getColumn(1).width=32; for(let c=2;c<=PL_N;c++) pl_.getColumn(c).width=13;
+
+  /* ================= Cashflow ================= */
+  const cfw=wbx.addWorksheet('Cashflow',{views:[{state:'frozen',xSplit:1,ySplit:1}],pageSetup:{orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,printTitlesRow:'1:1',printTitlesColumn:'A:A',margins:{left:0.3,right:0.3,top:0.4,bottom:0.4,header:0.2,footer:0.2}}});
+  cfw.addRow(['Line',...PH]);
+  const CF=cashflow();
+  const C={}; const cadd=(label,vals)=>{ cfw.addRow([label,...vals]); return cfw.rowCount; };
+  const bookedCF=p=>closed(p)&&MODEL.actuals[p]&&MODEL.actuals[p].cf;
+  C.open=cadd('Cash, opening',PERIODS.map((p,i)=> i===0
+    ? {formula:qn('Parameters')+'!$B$4'}
+    : {formula:colL(1+i)+'#CLOSE#'}));            /* patched once the close row is known */
+  C.coll=cadd('Collections',PERIODS.map(p=>{const c=CF[p];return c&&c.coll!=null?c.coll:null;}));
+  C.paid=cadd('Costs paid',PERIODS.map(p=>{const c=CF[p];return c&&c.paid!=null?c.paid:(c&&c.opBooked!=null?c.opBooked:null);}));
+  C.wc=cadd('Other working capital',PERIODS.map(p=> bookedCF(p)
+    ? {formula:ref('Actuals',acol(p),M.actRow['CF Other working capital'])}
+    : (M.wcN?{formula:'SUM('+rng('Working capital',icol(p),2,1+M.wcN)+')'}:0)));
+  C.dint=cadd('Interest paid',PERIODS.map(p=> bookedCF(p)
+    ? {formula:ref('Actuals',acol(p),M.actRow['CF Interest'])}
+    : (dMap.interest.length?{formula:'-('+dMap.interest.map(r=>ref('Debt',icol(p),r)).join('+')+')'}:(CF[p]?CF[p].debtInt:0))));
+  /* Months run the DSO/DPO waterfall, so operating cash is the block above.
+     Years are built indirectly from EBITDA, matching cashflow(): EBITDA plus
+     working capital plus debt interest, plus the movement in accrued bonus,
+     because a year's bonus leaves cash in the following year. */
+  C.cfo=cadd('Cash flow from operations',PERIODS.map((p,i)=>{
+    const c=colL(2+i);
+    if(isMonth(p)) return {formula:'SUM('+c+C.coll+':'+c+C.dint+')'};
+    const prev=String(+p-1);
+    const bonusDelta=ref('Bonus',bonusCol(p),BONUS_ACC)
+      +(BY.indexOf(prev)>=0 ? '-'+ref('Bonus',bonusCol(prev),BONUS_ACC) : '');
+    return {formula:ref('P&L',pcol(p),R.ebitda)+'+'+c+C.wc+'+'+c+C.dint+'+'+bonusDelta};
+  }));
+  C.capex=cadd('Capex',PERIODS.map(p=> bookedCF(p)
+    ? {formula:ref('Actuals',acol(p),M.actRow['CF Capex'])}
+    : {formula:'SUM('+rng('Capex',icol(p),2,1+DEPTS.length)+')'}));
+  C.cfi=cadd('Cash flow from investments',PERIODS.map((p,i)=>({formula:colL(2+i)+C.capex})));
+  C.capIn=cadd('Capital in',PERIODS.map(p=> bookedCF(p)
+    ? {formula:ref('Actuals',acol(p),M.actRow['CF Capital raised'])}
+    : {formula:ref('Financing',icol(p),M.finRow.capIn)}));
+  C.dIn=cadd('Debt drawdowns',PERIODS.map(p=> bookedCF(p)
+    ? {formula:ref('Actuals',acol(p),M.actRow['CF Debt raised'])}
+    : (dMap.drawdowns.length?{formula:dMap.drawdowns.map(r=>ref('Debt',icol(p),r)).join('+')}:(CF[p]?CF[p].debtIn:0))));
+  C.dRep=cadd('Debt repayments',PERIODS.map(p=> bookedCF(p)
+    ? {formula:ref('Actuals',acol(p),M.actRow['CF Debt repayment'])}
+    : (dMap.repayments.length?{formula:'-('+dMap.repayments.map(r=>ref('Debt',icol(p),r)).join('+')+')'}:(CF[p]?CF[p].debtRep:0))));
+  C.gIn=cadd('Grants in',PERIODS.map(p=> bookedCF(p)
+    ? {formula:ref('Actuals',acol(p),M.actRow['CF Grants raised'])}
+    : (gMap.collections.length?{formula:gMap.collections.map(r=>ref('Grants',icol(p),r)).join('+')}:(CF[p]?CF[p].grantIn:0))));
+  C.gRep=cadd('Grants repaid',PERIODS.map(p=> (!bookedCF(p)&&gMap.repayments.length)
+    ? {formula:'-('+gMap.repayments.map(r=>ref('Grants',icol(p),r)).join('+')+')'} : (CF[p]?CF[p].grantRep:0)));
+  C.oFin=cadd('Other financing',PERIODS.map(p=> bookedCF(p)?0:{formula:ref('Financing',icol(p),M.finRow.otherFin)}));
+  C.cff=cadd('Cash flow from financing',PERIODS.map((p,i)=>({formula:'SUM('+colL(2+i)+C.capIn+':'+colL(2+i)+C.oFin+')'})));
+  C.ncf=cadd('Net cash flow',PERIODS.map((p,i)=>{const c=colL(2+i);
+    return {formula:c+C.cfo+'+'+c+C.cfi+'+'+c+C.cff};}));
+  const anyRecon=PERIODS.some(p=>CF[p]&&Math.abs(CF[p].recon||0)>0.005);
+  if(anyRecon) C.recon=cadd('Actuals reconciliation',PERIODS.map(p=>(CF[p]&&CF[p].recon)||null));
+  C.close=cadd('Cash, closing',PERIODS.map((p,i)=>{const c=colL(2+i);
+    return {formula:c+C.open+'+'+c+C.ncf+(anyRecon?'+'+c+C.recon:'')};}));
+  /* now that the closing row exists, point each opening at the prior close */
+  for(let i=1;i<PERIODS.length;i++) cfw.getCell(C.open,2+i).value={formula:colL(1+i)+C.close};
+  styleHeaderRow(cfw,1,CF_N); styleBody(cfw,2,cfw.rowCount,CF_N);
+  setFmt(cfw,2,cfw.rowCount,2,CF_N,FMT.eur);
+  [C.cfo,C.cfi,C.cff,C.ncf,C.close].forEach(r=>styleBand(cfw,r,CF_N,'hard'));
+  styleBand(cfw,C.open,CF_N,'soft');
+  cfw.getColumn(1).width=32; for(let c=2;c<=CF_N;c++) cfw.getColumn(c).width=13;
+
+  /* ================= Overview ================= */
+  const ov=wbx.addWorksheet('Overview',{views:[{state:'frozen',xSplit:1,ySplit:1}],pageSetup:{orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,margins:{left:0.4,right:0.4,top:0.5,bottom:0.5,header:0.2,footer:0.2}}});
+  const YRS6=['2025','2026','2027','2028','2029','2030'];
+  ov.addRow(['Key indicators',...YRS6]);
+  /* A year column is the sum of its months on the output sheet, so the
+     annual figures are visibly the months rather than a parallel number. */
+  const yrPL=(row,Y)=>{
+    if(Y==='2025') return {formula:ref('P&L',pcol('2025'),row)};
+    if(YEARS.indexOf(Y)>=0) return {formula:ref('P&L',pcol(Y),row)};
+    const ms=MONTHS.filter(p=>p.slice(0,4)===Y);
+    return {formula:'SUM('+qn('P&L')+'!'+colL(pcol(ms[0]))+row+':'+colL(pcol(ms[ms.length-1]))+row+')'};
+  };
+  const yrCFclose=Y=>{
+    if(Y==='2025') return null;
+    if(YEARS.indexOf(Y)>=0) return {formula:ref('Cashflow',icol(Y),C.close)};
+    return {formula:ref('Cashflow',icol(Y+'-12'),C.close)};
+  };
+  const O={}; const oadd=(l,v)=>{ ov.addRow([l,...v]); return ov.rowCount; };
+  O.rev=oadd('Revenue',YRS6.map(Y=>yrPL(R.trev,Y)));
+  O.gm=oadd('Gross margin',YRS6.map(Y=>yrPL(R.gm,Y)));
+  O.gmp=oadd('Gross margin %',YRS6.map((Y,i)=>({formula:'IF('+colL(2+i)+O.rev+'=0,"",'+colL(2+i)+O.gm+'/'+colL(2+i)+O.rev+')'})));
+  O.opex=oadd('Total OPEX',YRS6.map(Y=>yrPL(R.topex,Y)));
+  O.ebitda=oadd('EBITDA',YRS6.map(Y=>yrPL(R.ebitda,Y)));
+  O.net=oadd('Net income',YRS6.map(Y=>yrPL(R.net,Y)));
+  O.cash=oadd('Cash, year end',YRS6.map(Y=>yrCFclose(Y)));
+  O.hc=oadd('Headcount, year end',YRS6.map(Y=>{const f=fteAt(Y);return DEPTS.reduce((s,d)=>s+(f[d]||0),0);}));
+  ov.addRow([]);
+  const secRow=ov.rowCount+1;
+  ov.addRow(['OPEX by department',...YRS6]);
+  const deptRows=DEPTS.map(d=>oadd(d,YRS6.map(Y=>yrPL(R['opex_'+d],Y))));
+  const totRow=oadd('Total OPEX',YRS6.map((Y,i)=>({formula:'SUM('+colL(2+i)+deptRows[0]+':'+colL(2+i)+deptRows[deptRows.length-1]+')'})));
+  styleHeaderRow(ov,1,7); styleHeaderRow(ov,secRow,7);
+  styleBody(ov,2,ov.rowCount,7);
+  setFmt(ov,2,ov.rowCount,2,7,FMT.eurM);
+  setFmt(ov,O.gmp,O.gmp,2,7,FMT.pct);
+  setFmt(ov,O.hc,O.hc,2,7,FMT.int);
+  [O.ebitda,O.cash,totRow].forEach(r=>styleBand(ov,r,7,'hard'));
+  ov.getColumn(1).width=34; for(let c=2;c<=7;c++) ov.getColumn(c).width=16;
+
+  return wbx;
+}
+
+async function exportBranded(){
+  try{
+    toast('Building the workbook...');
+    const wbx=await buildBrandedWB();
+    const buf=await wbx.xlsx.writeBuffer();
+    const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='Ignion_Financial_Plan_'+(SCN==='Budget'?'Budget':SCN.replace(/[^A-Za-z0-9]+/g,'_'))+'_'+new Date().toISOString().slice(0,10)+'.xlsx';
+    a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+    toast('Budget exported. Output sheets are formula driven; open in Excel to recalculate.');
+  }catch(e){
+    toast('Export failed: '+(e.message||e),true);
+    try{ console.error('[ignion] export failed:',e); }catch(_){}
+  }
+}
+
 function exportParams(){ const wb=buildParamWB(false); appendOutputSheets(wb); XLSX.writeFile(wb,'Ignion_FPA_Parameters.xlsx'); toast('Budget exported, inputs and outputs.'); }
 function exportTemplate(){ XLSX.writeFile(buildParamWB(true),'Ignion_FPA_Parameter_Template.xlsx'); toast('Template downloaded, actuals closed through '+MODEL.params.closedThrough+'.'); }
 async function importParams(file){
   try{
     const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
     const S=n=>{const ws=wb.Sheets[n];return ws?XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null}):null;};
+    /* Column headers may be raw period keys ("2026-08") as the template
+       writes them, or the readable labels ("Aug-26") the branded export uses.
+       Both must resolve to the same period. Anything else, including the
+       "(closed)" suffix, deliberately does not resolve, which is what keeps
+       closed months unwritable from the forecast sheets. */
+    const LBL2P={}; PERIODS.forEach(p=>{LBL2P[plabel(p)]=p;});
+    const normP=h=>{ const s=String(h==null?'':h).trim();
+      if(PERIODS.indexOf(s)>=0) return s;
+      return Object.prototype.hasOwnProperty.call(LBL2P,s)?LBL2P[s]:s; };
     const okP=p=>PERIODS.includes(p)&&!(isMonth(p)&&closed(p)); /* forecast sheets never touch closed months */
     const rv=S('Revenue USD');
     if(rv){ const hdr=rv[0]; for(const row of rv.slice(1)){ const l=LINES.find(x=>LNAME[x]===row[0]); if(!l)continue;
-      hdr.forEach((p,j)=>{ if(j>0&&okP(String(p))) MODEL.revenueUSD[l][String(p)]=num(row[j]); }); } }
+      hdr.forEach((p,j)=>{ if(j>0&&okP(normP(p))) MODEL.revenueUSD[l][normP(p)]=num(row[j]); }); } }
     const gmS=S('GM pct');
     if(gmS){ const hdr=gmS[0]; for(const row of gmS.slice(1)){ const l=LINES.find(x=>LNAME[x]===row[0]); if(!l)continue;
-      hdr.forEach((p,j)=>{ if(j>0&&okP(String(p))) MODEL.gmPct[l][String(p)]=num(row[j]); }); } }
+      hdr.forEach((p,j)=>{ if(j>0&&okP(normP(p))) MODEL.gmPct[l][normP(p)]=num(row[j]); }); } }
     const oo=S('Other OPEX');
     if(oo){ const hdr=oo[0]; const old=MODEL.otherOpex; MODEL.otherOpex=[];
       for(const row of oo.slice(1)){ if(!row[0])continue; const [dept,cc]=String(row[0]).split('|').map(s=>s.trim());
         const prev=old.find(x=>x.dept===dept&&x.costCenter===(cc||'General'));
         const vals={}; if(prev){ for(const p of PERIODS){ if(isMonth(p)&&closed(p)&&prev.values&&prev.values[p]!=null) vals[p]=prev.values[p]; } }
-        hdr.forEach((p,j)=>{ if(j>0&&okP(String(p))) vals[String(p)]=num(row[j]); });
+        hdr.forEach((p,j)=>{ if(j>0&&okP(normP(p))) vals[normP(p)]=num(row[j]); });
         MODEL.otherOpex.push({dept:dept,costCenter:cc||'General',values:vals}); } }
     const rt=S('Rates');
     if(rt){ const hdr=rt[0];
       for(const row of rt.slice(1)){ const nm=String(row[0]||'');
         const tgt = nm.startsWith('FX')?'fxM' : nm.startsWith('DSO')?'dsoM' : nm.startsWith('DPO')?'dpoM' : null;
         if(!tgt) continue; MODEL.params[tgt]=MODEL.params[tgt]||{};
-        hdr.forEach((p,j)=>{ if(j>0&&okP(String(p))&&row[j]!=null) MODEL.params[tgt][String(p)]=num(row[j]); }); } }
+        hdr.forEach((p,j)=>{ if(j>0&&okP(normP(p))&&row[j]!=null) MODEL.params[tgt][normP(p)]=num(row[j]); }); } }
     const bs=S('Bonus');
     if(bs){ const yrs=['2026','2027','2028','2029','2030'];
       for(const row of bs.slice(1)){ const nm=String(row[0]||'');
@@ -1274,22 +1724,22 @@ async function importParams(file){
       ['2028','2029','2030'].forEach((y,k)=>{ if(row[2+k]!=null) MODEL.params[tgt][d][y]=num(row[2+k]); }); } }
     const cx=S('Capex');
     if(cx){ const hdr=cx[0]; for(const row of cx.slice(1)){ const d=DEPTS.find(x=>x===row[0]); if(!d)continue;
-      hdr.forEach((p,j)=>{ if(j>0&&okP(String(p))) MODEL.capex[d][String(p)]=num(row[j]); }); } }
+      hdr.forEach((p,j)=>{ if(j>0&&okP(normP(p))) MODEL.capex[d][normP(p)]=num(row[j]); }); } }
     const be=S('Below EBITDA');
     if(be){ const hdr=be[0]; const map={'Depreciation':'dep','Works for own assets':'wfoa','Other non-EBITDA':'otherBTL'};
       for(const row of be.slice(1)){ const k=map[String(row[0])]; if(!k)continue;
-        hdr.forEach((p,j)=>{ if(j>0&&okP(String(p))) MODEL.nonEbitda[k][String(p)]=num(row[j]); }); } }
+        hdr.forEach((p,j)=>{ if(j>0&&okP(normP(p))) MODEL.nonEbitda[k][normP(p)]=num(row[j]); }); } }
     const wcS=S('Working capital');
     if(wcS){ const hdr=wcS[0]; let idx=0;
       for(const row of wcS.slice(1)){ if(row[0]==null)continue;
         const w=MODEL.wcLines.find(x=>x.name===row[0])||MODEL.wcLines[idx]; if(!w)continue;
         w.name=String(row[0]); w.values=w.values||{};
-        hdr.forEach((p,j)=>{ if(j>0&&okP(String(p))) w.values[String(p)]=num(row[j]); }); idx++; } }
+        hdr.forEach((p,j)=>{ if(j>0&&okP(normP(p))) w.values[normP(p)]=num(row[j]); }); idx++; } }
     const fn=S('Financing');
     if(fn){ const hdr=fn[0]; const map={'Capital in':'capitalIn','Other financing':'otherFin'};
       for(const row of fn.slice(1)){ const k=map[String(row[0])]; if(!k)continue;
         MODEL.financing[k]=MODEL.financing[k]||{};
-        hdr.forEach((p,j)=>{ if(j>0&&okP(String(p))) MODEL.financing[k][String(p)]=num(row[j]); }); } }
+        hdr.forEach((p,j)=>{ if(j>0&&okP(normP(p))) MODEL.financing[k][normP(p)]=num(row[j]); }); } }
     const emp=S('Employees');
     if(emp){ for(const row of emp.slice(1)){ if(!row[0])continue;
         let e=MODEL.employees.find(x=>x.name===row[0]);
@@ -1302,7 +1752,7 @@ async function importParams(file){
     if(acts&&SCN!=='Budget'){ acts=null; toast('Months are closed on the Budget and propagate to every scenario; the Actuals sheet was ignored here.',true); }
     if(acts){ const hdr=acts[0]; const byLine={}; acts.slice(1).forEach(r=>{ if(r[0]) byLine[r[0]]=r; });
       let newest=null;
-      hdr.forEach((p,j)=>{ if(j===0||!MONTHS.includes(String(p)))return; const k=String(p);
+      hdr.forEach((p,j)=>{ if(j===0||!MONTHS.includes(normP(p)))return; const k=normP(p);
         const gv=nm=>{const r=byLine[nm]; return r&&r[j]!=null? num(r[j]) : null;};
         const cc=gv('Cash close');
         const any=[...LINES.map(l=>'Revenue '+LNAME[l]),'Revenue Product','COGS','Cash close'].some(nm=>{const r=byLine[nm];return r&&r[j]!=null;});
@@ -1545,7 +1995,7 @@ $('liBtn').onclick=async()=>{
   $('liErr').textContent=''; await onSignedIn(data.user); };
 $('outBtn').onclick=async()=>{ try{await sb.auth.signOut();}catch(e){} location.reload(); };
 $('saveBtn').onclick=save;
-$('xlOut').onclick=exportParams;
+$('xlOut').onclick=exportBranded;
 $('scnSel').onchange=e=>{ const n=e.target.value;
   if(n===SCN)return;
   if(dirty && typeof window.confirm==='function' && !window.confirm('Discard unsaved changes in "'+SCN+'"?')){ syncScnUI(); return; }
